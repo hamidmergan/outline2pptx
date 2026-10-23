@@ -23,10 +23,10 @@ slide is rendered with LibreOffice.
 - [x] 3 Images and preview
 - [x] 4 API and CLI
 - [x] 5 Tests with fake server
-- [ ] 6 README, CHANGELOG, smoke test
+- [x] 6 README, CHANGELOG, smoke test
 - [ ] 7 English sweep, acceptance greps
 - [ ] 8 Web UI and Docker
 
 ## Open
 
-- none yet
+- The example picture in the README is rendered in the container, LibreOffice is not needed on the host

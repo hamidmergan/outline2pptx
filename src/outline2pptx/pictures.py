@@ -6,7 +6,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from . import image
-from .build import image_key
+from .deck import image_key
 from .config import Settings
 from .errors import ModelError
 from .schemas import Slide

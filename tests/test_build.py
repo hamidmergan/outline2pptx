@@ -3,7 +3,8 @@ from io import BytesIO
 import pytest
 from pptx import Presentation
 
-from outline2pptx import build, library, split, template
+from outline2pptx.deck import build_deck, date_text, layout_index
+from outline2pptx import library, split, template
 from outline2pptx.schemas import (
     Bar, Body, Card, Column, Entry, Figure, Series, Slide, Symbol,
 )
@@ -18,7 +19,7 @@ def clean():
 
 def deck_of(slides, loaded, **kwargs):
     data, analysis, _ = loaded
-    return build.build_deck(data, analysis, slides, {}, "A Deck", False, **kwargs)
+    return build_deck(data, analysis, slides, {}, "A Deck", False, **kwargs)
 
 
 def texts(prs):
@@ -126,9 +127,9 @@ def test_notes_only_reach_the_file_when_asked(clean):
     slides = [Slide(id="s1", role="cover", title="A Deck"),
               Slide(id="s2", role="text", title="Points", body=BODIES["bullets"], notes="Say this."),
               Slide(id="s3", role="closing", title="Done")]
-    with_notes = reopen(build.build_deck(data, analysis, slides, {}, "A Deck", True))
+    with_notes = reopen(build_deck(data, analysis, slides, {}, "A Deck", True))
     assert "Say this." in with_notes.slides[1].notes_slide.notes_text_frame.text
-    without = reopen(build.build_deck(data, analysis, slides, {}, "A Deck", False))
+    without = reopen(build_deck(data, analysis, slides, {}, "A Deck", False))
     assert not without.slides[1].has_notes_slide
 
 
@@ -142,20 +143,20 @@ def test_the_notice_lands_on_every_slide(clean):
 def test_date_text_follows_the_language():
     from datetime import date
 
-    assert build.date_text("en", date(2026, 3, 15)) == "Mar 15, 2026"
-    assert build.date_text("de", date(2026, 3, 15)) == "15.03.2026"
+    assert date_text("en", date(2026, 3, 15)) == "Mar 15, 2026"
+    assert date_text("de", date(2026, 3, 15)) == "15.03.2026"
 
 
 def test_layout_index_is_kept_once_chosen(clean):
     _, analysis, _ = clean
     s = Slide(id="s1", role="text", layout=analysis.roles["text"][-1])
-    assert build.layout_index(analysis, s, {}) == analysis.roles["text"][-1]
+    assert layout_index(analysis, s, {}) == analysis.roles["text"][-1]
 
 
 def test_layout_rotates_between_the_layouts_of_a_role(clean):
     _, analysis, _ = clean
     counter: dict = {}
-    picked = [build.layout_index(analysis, Slide(id=f"s{i}", role="text"), counter) for i in range(4)]
+    picked = [layout_index(analysis, Slide(id=f"s{i}", role="text"), counter) for i in range(4)]
     assert len(set(picked)) == len(analysis.roles["text"])
 
 

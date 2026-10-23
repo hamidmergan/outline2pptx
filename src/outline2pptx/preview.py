@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from . import build
+from .deck import build_deck
 from .schemas import Slide
 from .template import Analysis
 from .errors import PreviewError
@@ -38,7 +38,7 @@ def several(template_bytes: bytes, a: Analysis, slides: list[Slide], images: dic
             title: str, notes: bool, notice: str = "", *, numbers: list[int],
             date: str = "", presenter: str = "") -> list[bytes]:
     """Some slides of the deck in one render, each under its own number."""
-    deck = build.build_deck(template_bytes, a, slides, images, title, notes, notice, numbers=numbers, date=date,
+    deck = build_deck(template_bytes, a, slides, images, title, notes, notice, numbers=numbers, date=date,
                     presenter=presenter)
     pngs = render(deck)
     if len(pngs) < len(slides):

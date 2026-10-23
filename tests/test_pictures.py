@@ -4,7 +4,8 @@ from io import BytesIO
 import pytest
 from pptx import Presentation
 
-from outline2pptx import build, config, image, library, pictures, preview, render
+from outline2pptx import config, image, library, pictures, preview, render
+from outline2pptx.deck import build_deck
 from outline2pptx.errors import PreviewError
 from outline2pptx.schemas import Body, ImageSpec, Slide
 
@@ -92,7 +93,7 @@ def test_a_drawn_picture_reaches_the_deck(clean):
     data, analysis, _ = clean
     slides, layouts = picture_slides(analysis)
     drawn = pictures.draw(analysis, slides, layouts, settings_for(), "Flat.", "2563EB")
-    deck = build.build_deck(data, analysis, slides, drawn, "A Deck", False)
+    deck = build_deck(data, analysis, slides, drawn, "A Deck", False)
     prs = Presentation(BytesIO(deck))
     pictures_on_slide = [s for s in prs.slides[0].shapes if hasattr(s, "image")]
     assert len(pictures_on_slide) == 1
@@ -109,7 +110,7 @@ def test_images_need_a_model_in_the_settings():
 @pytest.mark.skipif(HAS_LIBREOFFICE, reason="LibreOffice is installed here")
 def test_preview_says_so_when_libreoffice_is_missing(clean):
     data, analysis, _ = clean
-    deck = build.build_deck(data, analysis, [Slide(id="s1", role="cover", title="A")], {}, "A", False)
+    deck = build_deck(data, analysis, [Slide(id="s1", role="cover", title="A")], {}, "A", False)
     with pytest.raises(PreviewError, match="LibreOffice"):
         preview.render(deck)
 
@@ -119,7 +120,7 @@ def test_preview_renders_one_png_per_slide(clean):
     data, analysis, _ = clean
     slides = [Slide(id="s1", role="cover", title="A Deck"),
               Slide(id="s2", role="closing", title="Done")]
-    deck = build.build_deck(data, analysis, slides, {}, "A Deck", False)
+    deck = build_deck(data, analysis, slides, {}, "A Deck", False)
     pngs = preview.render(deck)
     assert len(pngs) == 2
     assert all(p.startswith(b"\x89PNG") for p in pngs)

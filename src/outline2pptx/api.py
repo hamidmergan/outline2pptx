@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import colors, library, llm, outline as ol, pictures, slides as sl, split, template
-from .build import build_deck, date_text
+from .deck import build_deck, date_text
 from .config import Settings, resolve
 from .details import details
 from .errors import ModelError
