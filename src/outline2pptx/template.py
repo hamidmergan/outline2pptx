@@ -19,8 +19,11 @@ MARGIN_TEXT_PT = 12.0
 BODY_MIN_HEIGHT = EMU_PER_INCH
 MAX_WORDS = {"heading": 10, "subheading": 8, "body": 120}
 _NOT_FILLED = {"DATE", "FOOTER", "SLIDE_NUMBER"}
-_CLOSING_RE = re.compile(r"closing|end|danke|closing|thank", re.I)
-_SECTION_RE = re.compile(r"section|section", re.I)
+# The names a template gives its closing and its divider layout, in English and in German.
+# "end" carries its word boundaries: as a bare substring it also matches Agenda, Appendix,
+# Calendar, Trends and Legend, which are ordinary content layouts.
+_CLOSING_RE = re.compile(r"abschluss|danke|closing|thank|\bend(?:e|ing)?\b", re.I)
+_SECTION_RE = re.compile(r"abschnitt|section", re.I)
 _LVL1 = re.compile(r"<a:lvl1pPr(?:\s[^>]*[^/])?>(.*?)</a:lvl1pPr>", re.S)
 _SZ = re.compile(r"\ssz=\"(\d+)\"")
 _ANY_SZ = re.compile(r"<a:(?:defRPr|rPr|endParaRPr)[^>]*?\ssz=\"(\d+)\"")
@@ -293,7 +296,7 @@ def _signature(l: Layout) -> tuple:
     return tuple(sorted(f.kind for f in l.fields))
 
 
-def _rolle(l: Layout, first: Layout) -> str | None:
+def _role(l: Layout, first: Layout) -> str | None:
     kinds = [f.kind for f in l.fields]
     if l is first:
         return "cover"
@@ -318,7 +321,7 @@ def _assign_roles(a: Analysis) -> None:
         return
     first = a.layouts[0]
     for l in a.layouts:
-        l.role = _rolle(l, first)
+        l.role = _role(l, first)
         if l.role is None:
             a.skipped.append(l.name)
         else:
