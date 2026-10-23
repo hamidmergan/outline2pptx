@@ -22,7 +22,7 @@ slide is rendered with LibreOffice.
 - [x] 2 Building the slides
 - [x] 3 Images and preview
 - [x] 4 API and CLI
-- [ ] 5 Tests with fake server
+- [x] 5 Tests with fake server
 - [ ] 6 README, CHANGELOG, smoke test
 - [ ] 7 English sweep, acceptance greps
 - [ ] 8 Web UI and Docker
