@@ -161,7 +161,6 @@ class DeckParams(BaseModel):
     template_id: str = DEFAULT_TEMPLATE
     template_name: str = ""
     style_text: str = Field(default="", max_length=MAX_STYLE_CHARS)
-    source_label: str = ""
 
     @field_validator("presenter", mode="before")
     @classmethod

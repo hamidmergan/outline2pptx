@@ -99,3 +99,9 @@ button:disabled, .primary[aria-disabled="true"] { opacity: 0.5; cursor: not-allo
 .previews img {
   width: 100%; border: 2px solid var(--line); border-radius: 10px; background: var(--bg);
 }
+.info {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+  margin: 16px 0 0; font-size: 14px;
+}
+.info dt { color: var(--muted); }
+.info dd { margin: 0; overflow-wrap: anywhere; }

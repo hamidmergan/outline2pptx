@@ -46,6 +46,12 @@ const TEXTS = {
     back: "Back",
     doneTitle: "The presentation is done",
     summary: "{n} slides as a PowerPoint file.",
+    infoModel: "Text model",
+    infoImageModel: "Image model",
+    infoTemplate: "Slide master",
+    infoLanguage: "Language",
+    infoInstructions: "Instruction",
+    infoStyleText: "Image style",
     download: "Download PowerPoint",
     new: "New presentation",
     planning: "The outline is taking shape",
@@ -101,6 +107,12 @@ const TEXTS = {
     back: "Zurück",
     doneTitle: "Die Präsentation ist fertig",
     summary: "{n} Folien als PowerPoint-Datei.",
+    infoModel: "Textmodell",
+    infoImageModel: "Bildmodell",
+    infoTemplate: "Folienmaster",
+    infoLanguage: "Sprache",
+    infoInstructions: "Hinweis",
+    infoStyleText: "Bildstil",
     download: "PowerPoint herunterladen",
     new: "Neue Präsentation",
     planning: "Die Gliederung entsteht",
@@ -115,7 +127,8 @@ const TEXTS = {
 };
 
 const $ = (id) => document.getElementById(id);
-const state = { lang: "en", info: null, tab: "topic", step: "content", timer: null, slides: [] };
+const state = { lang: "en", info: null, deck: null, tab: "topic", step: "content",
+                timer: null, slides: [] };
 
 function fill(text, values) {
   return String(text).replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
@@ -142,6 +155,31 @@ function paint() {
     b.classList.toggle("on", b.dataset.lang === state.lang);
   });
   paintSlides();
+}
+
+// Every field /api/status reports about the finished deck, in the order the card shows them.
+const INFO_FIELDS = [
+  ["model", "infoModel"],
+  ["image_model", "infoImageModel"],
+  ["template", "infoTemplate"],
+  ["language", "infoLanguage"],
+  ["instructions", "infoInstructions"],
+  ["style_text", "infoStyleText"],
+];
+
+function paintInfo() {
+  const box = $("deckInfo");
+  box.innerHTML = "";
+  const info = state.deck || {};
+  INFO_FIELDS.forEach(([key, label]) => {
+    const value = info[key];
+    if (!value) return;
+    const term = document.createElement("dt");
+    term.textContent = t(label);
+    const text = document.createElement("dd");
+    text.textContent = value;
+    box.append(term, text);
+  });
 }
 
 function paintSlides() {
@@ -306,8 +344,10 @@ async function poll() {
     return;
   }
   state.slides = job.slides;
+  state.deck = job.info || {};
   $("summary").textContent = t("summary", { n: job.slides.length });
   paintSlides();
+  paintInfo();
   showPreviews(job.slides.length);
   showStep("done");
 }

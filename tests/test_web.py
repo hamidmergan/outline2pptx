@@ -210,3 +210,24 @@ def test_a_second_outline_is_refused_while_one_is_being_planned(server, monkeypa
     assert first["response"].status_code == 200
     # The flag is cleared again, so the next call goes through.
     assert client.post("/api/outline", json={"topic": "Bees"}).status_code == 200
+
+
+def test_the_page_shows_every_field_of_the_deck_info(server):
+    """The info the server computes is shown, not collected and dropped."""
+    from pathlib import Path
+
+    import outline2pptx.web.app as web
+
+    server.slides = answer_for_batch
+    client = make_client(server, instructions="Keep it short", style_text="Flat shapes")
+    client.post("/api/build", json={"outline": OUTLINE_MD})
+    info = wait_for(client)["info"]
+    assert info["model"] == "a-model"
+    assert info["template"] and info["language"] and info["instructions"] and info["style_text"]
+    page = (Path(web.STATIC) / "index.html").read_text("utf8")
+    script = (Path(web.STATIC) / "app.js").read_text("utf8")
+    assert 'id="deckInfo"' in page
+    for key in info:
+        if key == "slides":
+            continue
+        assert f'"{key}"' in script, f"the page never reads {key}"
