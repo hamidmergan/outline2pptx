@@ -44,7 +44,6 @@ MAX_BAR_TEXT_CHARS = 40
 # The word or number in the highlight box, it has to fit one line in large type.
 MAX_KEY_CHARS = 24
 # A generous ceiling: a real layout offers one or two picture fields, an uploaded one may offer more.
-MAX_IMAGES_PER_SLIDE = 8
 
 
 class OutlineRow(BaseModel):
@@ -150,14 +149,6 @@ class Slide(BaseModel):
     notes: str = Field(default="", max_length=MAX_NOTES_CHARS)
 
 
-def image_slots(s: "Slide") -> list:
-    """Everything on a slide that carries a picture description, in the order the tool numbers them."""
-    slots: list = list(s.images)
-    if s.body is not None and s.body.kind == "image":
-        slots.append(s.body)
-    return slots
-
-
 class DeckParams(BaseModel):
     """Everything the outline call and the content call need, written once at the start."""
 
@@ -165,14 +156,10 @@ class DeckParams(BaseModel):
     instructions: str = ""
     # Who gives the talk, shown in the bottom left of the cover when set.
     presenter: str = Field(default="", max_length=MAX_PRESENTER_CHARS)
-    # Whether speaker notes get written at all.
+    # Whether speaker notes get written. Written notes always reach the file.
     notes: bool = False
-    # Whether those notes reach the file.
-    notes_include: bool = True
     template_id: str = DEFAULT_TEMPLATE
     template_name: str = ""
-    # True when the chosen template could not be read and the default one stepped in.
-    template_fallback: bool = False
     style_text: str = Field(default="", max_length=MAX_STYLE_CHARS)
     source_label: str = ""
 
@@ -180,8 +167,3 @@ class DeckParams(BaseModel):
     @classmethod
     def _strip(cls, v):
         return v.strip() if isinstance(v, str) else v
-
-    @property
-    def notes_in_deck(self) -> bool:
-        """Notes reach the file only when they were written and are still wanted."""
-        return self.notes and self.notes_include

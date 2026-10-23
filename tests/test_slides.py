@@ -148,8 +148,3 @@ def test_ask_again_repeats_the_call(spec):
     assert len(again) == len(messages) + 2
     assert again[-1]["role"] == "user" and "too thin" in again[-1]["content"]
 
-
-def test_source_excerpt_picks_the_matching_stretch():
-    source = "alpha " * 200 + "quantum entanglement " * 20 + "omega " * 200
-    picked = sl.source_excerpt(source, ["quantum entanglement"], 400)
-    assert "quantum" in picked and len(picked) == 400

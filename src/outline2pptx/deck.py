@@ -241,19 +241,15 @@ def _slide(prs, layout: Layout, s: Slide, images: dict[str, bytes], title: str, 
         slide.notes_slide.notes_text_frame.text = s.notes
 
 
-_MONTHS = {
-    "en": ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
-    "de": ("Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."),
-}
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def date_text(language: str, day: date | None = None) -> str:
     """The day the deck is built, written the way its language writes dates."""
     day = day or date.today()
-    months = _MONTHS.get(language, _MONTHS["en"])
     if language == "de":
         return f"{day.day:02d}.{day.month:02d}.{day.year}"
-    return f"{months[day.month - 1]} {day.day}, {day.year}"
+    return f"{_MONTHS[day.month - 1]} {day.day}, {day.year}"
 
 
 _A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import functools
 import json
 import zipfile
 from io import BytesIO
@@ -116,9 +115,3 @@ def load(name: str, template_dir: str | Path | None = None) -> tuple[bytes, Anal
     path = find(name, template_dir)
     data, analysis = check(path.read_bytes(), path.suffix)
     return data, analysis, {"id": path.stem, **_meta_for(path)}
-
-
-@functools.lru_cache(maxsize=4)
-def builtin(name: str) -> tuple[bytes, Analysis, dict]:
-    """A packaged template, cached because it never changes while the process runs."""
-    return load(name)

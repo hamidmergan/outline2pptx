@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from io import BytesIO
 
 from lxml import etree
@@ -93,18 +93,6 @@ class Analysis:
 
     def has_image_fields(self) -> bool:
         return any(f.kind == "picture" for l in self.layouts for f in l.fields)
-
-
-def to_dict(a: Analysis) -> dict:
-    return asdict(a)
-
-
-def from_dict(d: dict) -> Analysis:
-    layouts = [Layout(index=l["index"], name=l["name"], role=l["role"],
-                      fields=[Field(**f) for f in l["fields"]]) for l in d["layouts"]]
-    return Analysis(width=d["width"], height=d["height"], typeface=d["typeface"], layouts=layouts,
-                   roles={k: list(v) for k, v in d["roles"].items()},
-                   skipped=list(d.get("skipped", [])))
 
 
 def analyse(source: bytes | str) -> Analysis:

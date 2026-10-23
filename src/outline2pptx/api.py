@@ -46,11 +46,11 @@ class Deck:
         return pv.render(self.data, dpi or pv.DPI)
 
 
-def _params(settings: Settings, meta: dict, fallback: bool = False) -> DeckParams:
+def _params(settings: Settings, meta: dict) -> DeckParams:
     return DeckParams(language=settings.language, instructions=settings.instructions,
                       presenter=settings.presenter, notes=settings.notes,
                       template_id=meta.get("id", settings.template),
-                      template_name=meta.get("name", ""), template_fallback=fallback,
+                      template_name=meta.get("name", ""),
                       style_text=settings.style_text or meta.get("style_text", ""))
 
 
@@ -104,7 +104,7 @@ def build(outline_md: str, output: str | Path | None = None, *, client=None,
     drawn = pictures.draw(analysis, ordered, layouts, settings, params.style_text, palette.base,
                           client=image_client)
 
-    deck = build_deck(data, analysis, ordered, drawn, plan.title, params.notes_in_deck,
+    deck = build_deck(data, analysis, ordered, drawn, plan.title, params.notes,
                       settings.notice, date=date_text(settings.language),
                       presenter=settings.presenter)
     info = details(params, settings.model, settings.image_model if settings.images else "")
