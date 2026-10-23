@@ -2,6 +2,8 @@
 
 A Python tool that builds a PowerPoint deck from a Markdown outline or from a plain topic. The model plans the outline and writes the slide content. The file itself is built with python-pptx from a template, so the result is a normal editable `.pptx`.
 
+![One slide of a deck built with the clean template](https://raw.githubusercontent.com/hamidmergan/outline2pptx/main/docs/example.png)
+
 outline2pptx currently writes:
 
 - Bullet slides, two column slides and section dividers
@@ -207,7 +209,9 @@ Start a local page with the same options as the CLI:
 outline2pptx serve
 ```
 
-It listens on `http://127.0.0.1:8000`. Enter a topic or paste an outline, pick a template and a language, and download the deck when it is done. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
+It listens on `http://127.0.0.1:8000`. The page has three steps: content, outline and done. Enter a topic and let the model plan the outline, or paste your own Markdown. Edit the outline, pick a template and a language, then build the deck and download it. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
+
+The page is available in English and German.
 
 The page has no login. `--host 0.0.0.0` opens it to the network, and then anyone who can reach the port can use it.
 

@@ -47,9 +47,9 @@ def build_soffice_cmd(pptx_path: Path, output_dir: Path) -> list[str]:
 
 
 def _fix_broken_linebreak_runs(prs: Presentation) -> bool:
-    """Some AI slide generators leave a bare '\\n' as its own run with an empty
-    <a:rPr/> instead of <a:br/> - LibreOffice then renders it in a fallback
-    font/size, pushing the following text onto a wrongly styled line."""
+    """A bare '\\n' sometimes arrives as its own run with an empty <a:rPr/> instead of an
+    <a:br/>. LibreOffice then renders it in a fallback font and size, which pushes the
+    following text onto a wrongly styled line."""
     changed = False
     for slide in prs.slides:
         for shape in slide.shapes:
@@ -81,10 +81,9 @@ def _fix_broken_linebreak_runs(prs: Presentation) -> bool:
 
 
 def _fix_tight_line_spacing(prs: Presentation, min_ratio: float = 1.2, min_pct: int = 100000) -> bool:
-    """Some AI slide generators write a line height that is too small for the
-    paragraph's own font size - either a fixed <a:spcPts> smaller than the
-    font, or a <a:spcPct> below single-line spacing (100000 = 100%). Either
-    way, multi-line text then overlaps itself, in any renderer."""
+    """A line height that is too small for the paragraph's own font size, either a fixed
+    <a:spcPts> smaller than the font or a <a:spcPct> below single-line spacing
+    (100000 = 100%). Either way, multi-line text then overlaps itself, in any renderer."""
     changed = False
     for slide in prs.slides:
         for shape in slide.shapes:

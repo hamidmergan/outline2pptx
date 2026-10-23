@@ -27,7 +27,7 @@ from .fonts import load_font
 log = logging.getLogger(__name__)
 
 _NO_MARGIN_TEXT = ("cover", "closing")
-# The AI notice in the bottom right corner: a fixed size, in dark grey.
+# The notice in the bottom right corner: a fixed size, in dark grey.
 NOTICE_PT = 10.0
 NOTICE_GREY = RGBColor(0x59, 0x59, 0x59)
 _NOTICE_WIDTH = Emu(3 * 914400)

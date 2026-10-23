@@ -64,7 +64,8 @@ def _serve(argv: List[str]) -> int:
     )
     if args.host not in LOOPBACK:
         _err(NO_LOGIN)
-    uvicorn.run(app, host=args.host, port=args.port)
+    print(f"outline2pptx is listening on http://{args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
 
 

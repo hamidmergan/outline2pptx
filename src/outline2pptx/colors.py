@@ -20,7 +20,7 @@ BAND = 0.05
 # Series and pie slices spread between these two shares, whatever their count.
 STEP_TOP = 1.0
 STEP_BOTTOM = 0.3
-# Secondary text, the grey the AI notice already uses.
+# Secondary text, the grey the corner notice already uses.
 SECONDARY_TEXT = "595959"
 GRIDLINE = "D9D9D9"
 _FALLBACK = "404040"

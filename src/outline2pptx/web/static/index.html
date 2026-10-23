@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>outline2pptx</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1 data-t="title">Presentation</h1>
+    <div class="spacer"></div>
+    <span id="model" class="muted"></span>
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" class="lang on" data-lang="en">EN</button>
+      <button type="button" class="lang" data-lang="de">DE</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="intro muted" data-t="intro"></p>
+
+    <ol class="steps" id="steps">
+      <li class="on" data-step="content" data-t="stepContent">Content</li>
+      <li data-step="outline" data-t="stepOutline">Outline</li>
+      <li data-step="done" data-t="stepDone">Done</li>
+    </ol>
+
+    <section class="card" id="contentCard">
+      <h2 data-t="heading">What is it about?</h2>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab on" data-tab="topic" data-t="tabTopic">Topic</button>
+        <button type="button" class="tab" data-tab="markdown" data-t="tabMarkdown">Outline</button>
+      </div>
+
+      <div id="topicPane">
+        <label class="field">
+          <span data-t="topicLabel">Topic</span>
+          <textarea id="topic" rows="3"></textarea>
+        </label>
+        <label class="field small">
+          <span data-t="slidesLabel">Number of slides</span>
+          <input type="number" id="slides" min="3" max="30" placeholder="">
+          <small class="muted" data-t="slidesHint"></small>
+        </label>
+      </div>
+
+      <div id="markdownPane" hidden>
+        <label class="field">
+          <span data-t="markdownLabel">Your outline as Markdown</span>
+          <textarea id="markdown" rows="10"></textarea>
+          <small class="muted" data-t="markdownHint"></small>
+        </label>
+      </div>
+
+      <label class="field">
+        <span data-t="templateLabel">Slide master</span>
+        <select id="template"></select>
+        <small class="muted" data-t="templateHelp"></small>
+      </label>
+
+      <div class="row">
+        <label class="field small">
+          <span data-t="languageLabel">Slide language</span>
+          <select id="language">
+            <option value="en" data-t="languageEn">English</option>
+            <option value="de" data-t="languageDe">German</option>
+          </select>
+        </label>
+        <label class="field small">
+          <span data-t="presenterLabel">Name on the cover (optional)</span>
+          <input type="text" id="presenter" maxlength="80">
+        </label>
+      </div>
+
+      <label class="field">
+        <span data-t="instructionsLabel">Content instruction (optional)</span>
+        <textarea id="instructions" rows="2"></textarea>
+      </label>
+
+      <label class="field">
+        <span data-t="styleLabel">Instruction for the images</span>
+        <textarea id="styleText" rows="2"></textarea>
+      </label>
+
+      <div class="row">
+        <label class="check"><input type="checkbox" id="notes"> <span data-t="notesLabel">Create speaker notes for every slide</span></label>
+        <label class="check"><input type="checkbox" id="images"> <span data-t="imagesLabel">Create images</span></label>
+      </div>
+      <small class="muted" data-t="notesHint"></small>
+    </section>
+
+    <section class="card" id="modelCard" hidden>
+      <h2 data-t="modelTitle">Model</h2>
+      <p class="muted" data-t="modelHint"></p>
+      <div class="row">
+        <label class="field small"><span>base_url</span>
+          <input type="text" id="baseUrl" placeholder="http://localhost:11434/v1"></label>
+        <label class="field small"><span>model</span>
+          <input type="text" id="modelName" placeholder="your-model"></label>
+        <label class="field small"><span>api_key</span>
+          <input type="password" id="apiKey" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <label class="field small"><span>image_base_url</span>
+          <input type="text" id="imageBaseUrl" placeholder=""></label>
+        <label class="field small"><span>image_model</span>
+          <input type="text" id="imageModel" placeholder="your-image-model"></label>
+        <label class="field small"><span>image_api_key</span>
+          <input type="password" id="imageApiKey" autocomplete="off"></label>
+      </div>
+    </section>
+
+    <section class="card" id="startCard">
+      <button type="button" id="plan" class="primary" data-t="next">Create outline</button>
+      <button type="button" id="skip" class="button" data-t="buildDirect">Create slides</button>
+      <p id="contentStatus" class="muted" aria-live="polite"></p>
+      <p id="contentError" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="outlineCard" hidden>
+      <h2 data-t="outlineTitle">The outline</h2>
+      <p class="muted" data-t="outlineHint"></p>
+      <label class="field">
+        <span class="sr" data-t="outlineLabel">Outline</span>
+        <textarea id="outline" rows="16"></textarea>
+      </label>
+      <div class="row">
+        <button type="button" id="build" class="primary" data-t="build">Create slides</button>
+        <button type="button" id="back" class="button" data-t="back">Back</button>
+      </div>
+      <p id="buildStatus" class="muted" aria-live="polite"></p>
+      <p id="buildError" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="doneCard" hidden>
+      <h2 data-t="doneTitle">The presentation is done</h2>
+      <p id="summary" class="muted"></p>
+      <div class="row">
+        <a id="download" class="primary" href="/api/download" data-t="download">Download PowerPoint</a>
+        <button type="button" id="again" class="button" data-t="new">New presentation</button>
+      </div>
+      <ul id="slideList" class="slides"></ul>
+      <div id="previews" class="previews"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -25,8 +25,10 @@ slide is rendered with LibreOffice.
 - [x] 5 Tests with fake server
 - [x] 6 README, CHANGELOG, smoke test
 - [x] 7 English sweep, acceptance greps
-- [ ] 8 Web UI and Docker
+- [x] 8 Web UI and Docker
 
 ## Open
 
-- The example picture in the README is rendered in the container, LibreOffice is not needed on the host
+- The example picture in the README is rendered in the container, LibreOffice is not needed
+  on the host
+- The page builds one deck at a time and keeps it in memory, a second request waits

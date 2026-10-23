@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pptx
 from pptx import Presentation
+from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.util import Emu
 
 OUT = Path(__file__).resolve().parents[1] / "src" / "outline2pptx" / "templates"
@@ -30,9 +31,16 @@ BODY_TOP, BODY_HIGH = 1700000, 4300000
 
 TITLE_PT, HEAD_PT, SUB_PT, BODY_PT = 4000, 3200, 2000, 1800
 
+# Date, footer and slide number sit in the bottom strip of every layout.
+FOOT_TOP, FOOT_HIGH = 6200000, 400050
+FOOT_WIDE = 3500000
 # Per layout: its new name and what every placeholder index becomes. A placeholder the plan does
 # not name is dropped, except the date, footer and slide number, which every layout keeps.
-KEEP = (10, 11, 12)
+KEEP = {
+    10: (MARGIN, FOOT_TOP, FOOT_WIDE, FOOT_HIGH),
+    11: ((WIDE - FOOT_WIDE) // 2, FOOT_TOP, FOOT_WIDE, FOOT_HIGH),
+    12: (WIDE - MARGIN - FOOT_WIDE, FOOT_TOP, FOOT_WIDE, FOOT_HIGH),
+}
 PLAN = {
     "Title Slide": ("Title Slide", {
         0: (MARGIN, 2200000, FULL, 1500000, TITLE_PT),
@@ -121,6 +129,14 @@ def _set_size(shape, hundredths: int) -> None:
                 frame.remove(auto)
 
 
+def _place(shape, box) -> None:
+    """A placeholder gets its whole box, otherwise it inherits only part of it."""
+    if box is None:
+        return
+    left, top, width, height = box
+    shape.left, shape.top, shape.width, shape.height = Emu(left), Emu(top), Emu(width), Emu(height)
+
+
 def _lay_out(layout, plan: dict) -> None:
     for shape in list(layout.placeholders):
         idx = shape.placeholder_format.idx
@@ -174,16 +190,20 @@ def build(key: str, meta: dict) -> None:
         if layout.name in DROP:
             master.slide_layouts.remove(layout)
     prs.slide_width, prs.slide_height = Emu(WIDE), Emu(HIGH)
-    for shape in master.shapes:
-        if shape.left is not None and shape.width is not None:
+    # The master is addressed by type, its own indexes differ from the ones in the layouts.
+    by_type = {PP_PLACEHOLDER.DATE: KEEP[10], PP_PLACEHOLDER.FOOTER: KEEP[11],
+               PP_PLACEHOLDER.SLIDE_NUMBER: KEEP[12]}
+    for shape in master.placeholders:
+        box = by_type.get(shape.placeholder_format.type)
+        if box is None:
             shape.left = Emu(int(shape.left * WIDE / 9144000))
             shape.width = Emu(int(shape.width * WIDE / 9144000))
+            continue
+        _place(shape, box)
     for layout in list(master.slide_layouts):
         name, plan = PLAN[layout.name]
         for shape in layout.placeholders:
-            if shape.placeholder_format.idx in KEEP and shape.left is not None:
-                shape.left = Emu(int(shape.left * WIDE / 9144000))
-                shape.width = Emu(int(shape.width * WIDE / 9144000))
+            _place(shape, KEEP.get(shape.placeholder_format.idx))
         _lay_out(layout, plan)
         layout.name = name
     restyle_master(prs)
