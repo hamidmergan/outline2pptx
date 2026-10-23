@@ -185,7 +185,7 @@ Order: argument, then environment variable, then default.
 | `language` / `--language` | `OUTLINE2PPTX_LANGUAGE` | `en` |
 | `template` / `--template` | `OUTLINE2PPTX_TEMPLATE` | `clean` |
 | `template_dir` / `--template-dir` | `OUTLINE2PPTX_TEMPLATE_DIR` | none |
-| `slides` / `--slides` | `OUTLINE2PPTX_SLIDES` | the model decides, 3 to 30 |
+| `slides` / `--slides` | `OUTLINE2PPTX_SLIDES` | the model decides, 3 to 30, for a topic only |
 | `images` / `--images` | `OUTLINE2PPTX_IMAGES` | off |
 | `notes` / `--notes` | `OUTLINE2PPTX_NOTES` | off |
 | `presenter` / `--presenter` | `OUTLINE2PPTX_PRESENTER` | empty |
