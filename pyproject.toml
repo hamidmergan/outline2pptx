@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "outline2pptx"
+version = "0.1.0"
+description = "Build PowerPoint slide decks from a Markdown outline or a topic with any OpenAI-compatible model"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Hamid Mergan" }]
+keywords = ["pptx", "powerpoint", "slides", "presentation", "markdown", "llm", "ollama", "openai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Office Suites",
+    "Topic :: Multimedia :: Graphics :: Presentation",
+    "Typing :: Typed",
+]
+dependencies = [
+    "openai>=1.30",
+    "python-pptx>=1.0",
+    "Pillow>=10.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+ui = ["fastapi>=0.100", "uvicorn>=0.23", "python-multipart>=0.0.6"]
+test = ["pytest>=7", "httpx>=0.24", "fastapi>=0.100", "uvicorn>=0.23", "python-multipart>=0.0.6"]
+dev = ["pytest>=7", "httpx>=0.24", "fastapi>=0.100", "uvicorn>=0.23", "python-multipart>=0.0.6", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/hamidmergan/outline2pptx"
+Source = "https://github.com/hamidmergan/outline2pptx"
+Issues = "https://github.com/hamidmergan/outline2pptx/issues"
+Changelog = "https://github.com/hamidmergan/outline2pptx/blob/main/CHANGELOG.md"
+
+[project.scripts]
+outline2pptx = "outline2pptx.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+outline2pptx = ["py.typed", "templates/*", "icons/*.png", "fonts/poppins/*", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
