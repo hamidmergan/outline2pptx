@@ -19,7 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Layouts chosen by role, a grid that keeps the spacing, colours read from the template and
   an icon set that is matched by name
 - Columns that do not fit are split over a second slide, speaker notes along with them
-- Illustrations from an optional image model, with a coloured placeholder when none is set
+- Illustrations from an optional image model, and a picture it refuses becomes a coloured block
 - Speaker notes, a presenter name on the cover and a short notice on every slide
 - One PNG per slide through LibreOffice, from the CLI with `--preview` or from `Deck.preview()`
 - Command line interface with `--topic`, `--outline-only`, `--images`, `--preview`,

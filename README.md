@@ -10,14 +10,14 @@ outline2pptx currently writes:
 - Tables, bar charts and line charts
 - Cards with icons, bar comparisons, key figures, process steps and pyramid levels
 - One highlighted key statement
-- Illustrations from an image model, or a coloured placeholder without one
+- Illustrations from an image model, and a deck without one simply has no picture boxes
 - Speaker notes, on request
 
 ## Prerequisites
 
 - Python 3.10 or newer
 - A server with an OpenAI-compatible API and a **text model** (for example Ollama, vLLM, LM Studio, a university server or a cloud provider). It is needed for `--topic` and for writing the slides.
-- An **image model** on the same kind of API, only needed for `--images`. Without one, every illustration becomes a plain coloured placeholder.
+- An **image model** on the same kind of API, only needed for `--images`. Without one the deck is built without pictures, and a slide that asked for one keeps its text alone.
 - An API key is optional. Many self-hosted servers do not need one.
 - LibreOffice, only needed for `--preview`. Nothing else uses it.
 

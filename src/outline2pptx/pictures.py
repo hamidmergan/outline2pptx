@@ -1,4 +1,4 @@
-"""Every picture a deck needs: drawn by the image model, or a plain tinted placeholder without one."""
+"""Every picture a deck needs, drawn by the image model. A picture it refuses gets a tinted placeholder."""
 
 from __future__ import annotations
 
@@ -46,12 +46,14 @@ def plan(a: Analysis, slides: list[Slide], layouts: dict[str, int]) -> list[tupl
 
 def draw(a: Analysis, slides: list[Slide], layouts: dict[str, int], settings: Settings,
          style_text: str, color: str, client=None) -> dict[str, bytes]:
-    """The pictures by key. Without an image model every field gets a tinted placeholder."""
+    """The pictures by key. Without pictures the slide keeps no empty slot, the builder drops it."""
     wanted = plan(a, slides, layouts)
     if not wanted:
         return {}
     if not settings.images or not settings.has_image_model:
-        return {key: image.placeholder(f.width, f.height, color) for key, f, _ in wanted}
+        # Nothing drawn, so the builder leaves the picture slot out of the slide. A deck without
+        # pictures has no coloured slab in it to delete by hand.
+        return {}
     if client is None:
         from .llm import make_image_client
 

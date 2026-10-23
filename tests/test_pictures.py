@@ -3,6 +3,7 @@ from io import BytesIO
 
 import pytest
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE, PP_PLACEHOLDER
 
 from outline2pptx import config, image, library, pictures, preview, render
 from outline2pptx.deck import build_deck
@@ -43,12 +44,18 @@ def test_a_quoted_word_is_taken_out_of_a_prompt():
     assert image.NO_LETTERING in image.prompt_for("", "A door")
 
 
-def test_without_an_image_model_every_field_gets_a_placeholder(clean):
-    _, analysis, _ = clean
+def test_without_an_image_model_the_slide_keeps_no_picture_box(clean):
+    """A deck built without pictures must not leave a coloured slab to delete by hand."""
+    data, analysis, _ = clean
     slides, layouts = picture_slides(analysis)
     drawn = pictures.draw(analysis, slides, layouts, settings_for(), "Flat.", "2563EB")
-    assert set(drawn) == {"s1_0"}
-    assert drawn["s1_0"].startswith(b"\x89PNG")
+    assert drawn == {}
+    prs = Presentation(BytesIO(build_deck(data, analysis, slides, drawn, "A Deck", False)))
+    shapes = list(prs.slides[0].shapes)
+    assert "A picture slide" in [sh.text_frame.text for sh in shapes if sh.has_text_frame]
+    assert not any(sh.shape_type == MSO_SHAPE_TYPE.PICTURE for sh in shapes)
+    assert not any(sh.is_placeholder and sh.placeholder_format.type == PP_PLACEHOLDER.PICTURE
+                   for sh in shapes)
 
 
 def test_the_image_model_draws_every_field(clean, server):
@@ -100,10 +107,10 @@ def test_a_failing_image_model_falls_back_to_a_placeholder(clean, server):
     assert drawn["s1_0"].startswith(b"\x89PNG")
 
 
-def test_a_drawn_picture_reaches_the_deck(clean):
+def test_a_drawn_picture_reaches_the_deck(clean, server):
     data, analysis, _ = clean
     slides, layouts = picture_slides(analysis)
-    drawn = pictures.draw(analysis, slides, layouts, settings_for(), "Flat.", "2563EB")
+    drawn = pictures.draw(analysis, slides, layouts, settings_for(server), "Flat.", "2563EB")
     deck = build_deck(data, analysis, slides, drawn, "A Deck", False)
     prs = Presentation(BytesIO(deck))
     pictures_on_slide = [s for s in prs.slides[0].shapes if hasattr(s, "image")]
@@ -178,16 +185,14 @@ def test_a_split_picture_slide_still_gets_its_pictures():
     # The rest has no text layout to fall back to, but it still carries one.
     assert all(part.layout is not None for part in ordered)
     layouts = {part.id: part.layout for part in ordered if part.layout is not None}
-    drawn = pictures.draw(analysis, ordered, layouts, settings_for(), "Flat.", "2563EB")
-    assert "s1_0" in drawn
+    assert [key for key, _, _ in pictures.plan(analysis, ordered, layouts)] == ["s1_0"]
 
 
 def test_a_slide_without_a_stored_layout_rotates_instead_of_failing(clean):
     _, analysis, _ = clean
     slides, _ = picture_slides(analysis)
     slides[0].layout = None
-    drawn = pictures.draw(analysis, slides, {}, settings_for(), "Flat.", "2563EB")
-    assert set(drawn) == {"s1_0"}
+    assert [key for key, _, _ in pictures.plan(analysis, slides, {})] == ["s1_0"]
 
 
 def test_no_slide_image_is_a_preview_error_not_a_raw_runtime_error(clean, tmp_path, monkeypatch):
