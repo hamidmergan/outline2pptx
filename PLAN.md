@@ -18,7 +18,7 @@ slide is rendered with LibreOffice.
 ## Progress
 
 - [x] 0 Scaffold
-- [ ] 1 Data model and outline
+- [x] 1 Data model and outline
 - [ ] 2 Building the slides
 - [ ] 3 Images and preview
 - [ ] 4 API and CLI
