@@ -240,8 +240,8 @@ def _char_budget(f: Field) -> int:
     height_pt = f.height / EMU_PER_PT - 7
     # Measured on Carlito: caps cost 17 percent width, bold another 2, and a budget
     # that ignores them lets the model write a title that wraps into the line below.
-    breit = 0.5 * (1.17 if f.caps else 1.0) * (1.02 if f.bold else 1.0)
-    chars_per_line = max(10.0, width_pt / (f.size_pt * breit))
+    char_width = 0.5 * (1.17 if f.caps else 1.0) * (1.02 if f.bold else 1.0)
+    chars_per_line = max(10.0, width_pt / (f.size_pt * char_width))
     lines = max(1, int(height_pt / (f.size_pt * 1.2)))
     return int(chars_per_line * lines)
 
@@ -273,11 +273,11 @@ def _fields(layout, title_pt: float, text_pt: float) -> list[Field]:
                         inset_bottom=inset_bottom, line_pt=_line_spacing(xml)))
     texts = [f for f in raw if f.kind == ""]
     if texts:
-        groesster = max(f.size_pt for f in texts)
-        vergeben = False
+        largest = max(f.size_pt for f in texts)
+        taken = False
         for f in texts:
-            if not vergeben and f.size_pt == groesster:
-                f.kind, vergeben = "heading", True
+            if not taken and f.size_pt == largest:
+                f.kind, taken = "heading", True
             elif f.size_pt <= MARGIN_TEXT_PT or f.size_pt <= text_pt * 0.75:
                 f.kind = "margin_text"
             elif f.ph_type == "SUBTITLE":
@@ -331,9 +331,9 @@ def _assign_roles(a: Analysis) -> None:
         if role in a.roles:
             a.roles[role].sort(key=lambda i: len(a.layout(i).of_kind("picture")))
     # A section divider with a picture is a slide of picture and title alone, the plain ones win where the template has them.
-    schlicht = [i for i in a.roles.get("section", []) if not a.layout(i).of_kind("picture")]
-    if schlicht:
-        a.roles["section"] = schlicht
+    plain = [i for i in a.roles.get("section", []) if not a.layout(i).of_kind("picture")]
+    if plain:
+        a.roles["section"] = plain
     if "closing" not in a.roles:
-        deckblaetter = a.roles.get("cover", [first.index])
-        a.roles["closing"] = [deckblaetter[1] if len(deckblaetter) > 1 else deckblaetter[0]]
+        covers = a.roles.get("cover", [first.index])
+        a.roles["closing"] = [covers[1] if len(covers) > 1 else covers[0]]

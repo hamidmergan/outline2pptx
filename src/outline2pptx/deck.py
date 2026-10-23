@@ -74,10 +74,10 @@ def build_deck(template_bytes: bytes, a: Analysis, slides: list[Slide], images: 
 
 
 def _clear(prs) -> None:
-    liste = prs.slides._sldIdLst
-    for sld in list(liste):
+    id_list = prs.slides._sldIdLst
+    for sld in list(id_list):
         prs.part.drop_rel(sld.rId)
-        liste.remove(sld)
+        id_list.remove(sld)
 
 
 def _ph(slide, idx: int):
@@ -363,10 +363,10 @@ def _notice(prs, slide, text: str, typeface: str) -> None:
     left = Emu(prs.slide_width - _NOTICE_WIDTH - _NOTICE_MARGIN)
     top = Emu(prs.slide_height - _NOTICE_HEIGHT - _NOTICE_MARGIN)
     box = slide.shapes.add_textbox(left, top, _NOTICE_WIDTH, _NOTICE_HEIGHT)
-    rahmen = box.text_frame
-    rahmen.word_wrap = False
-    rahmen.margin_left = rahmen.margin_right = rahmen.margin_top = rahmen.margin_bottom = 0
-    paragraph = rahmen.paragraphs[0]
+    frame = box.text_frame
+    frame.word_wrap = False
+    frame.margin_left = frame.margin_right = frame.margin_top = frame.margin_bottom = 0
+    paragraph = frame.paragraphs[0]
     paragraph.alignment = PP_ALIGN.RIGHT
     run = paragraph.add_run()
     run.text = text

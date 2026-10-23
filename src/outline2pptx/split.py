@@ -11,7 +11,7 @@ from .fonts import load_font
 
 _INSET_PT = 36.0
 _BULLET_PT = 22.0
-_ZEILE = 1.2
+_LINE_RATIO = 1.2
 # A slide with fewer points is not worth showing, a field beside another needs fewer.
 MIN_BULLETS = 5
 MIN_BULLETS_PER_COLUMN = 3
@@ -36,12 +36,12 @@ def lines(items: list[str], font, width_pt: float) -> int:
         current = 0.0
         for word in item.split():
             w = font.getlength(word)
-            leer = font.getlength(" ") if current else 0.0
-            if current and current + leer + w > width_pt:
+            blank = font.getlength(" ") if current else 0.0
+            if current and current + blank + w > width_pt:
                 n += 1
                 current = w
             else:
-                current += leer + w
+                current += blank + w
     return n
 
 
@@ -52,7 +52,7 @@ def fits(items: list[str], field: Field, typeface: str, size: float | None = Non
     font = load_font(typeface, round(size))
     width = field.width / EMU_PER_PT - _INSET_PT - _BULLET_PT
     height = field.height / EMU_PER_PT - 7.0
-    return lines(items, font, width) * size * _ZEILE <= height
+    return lines(items, font, width) * size * _LINE_RATIO <= height
 
 
 def font_size(items: list[str], field: Field, typeface: str) -> float | None:
@@ -95,12 +95,12 @@ def split_notes(notes: str, ratio: float) -> tuple[str, str]:
     if len(sentences) < 2:
         return notes, notes
     target = ratio * len(notes)
-    stand, schnitt, gap = 0, 1, float("inf")
-    for i, satz in enumerate(sentences[:-1], 1):
-        stand += len(satz) + 1
-        if abs(stand - target) < gap:
-            schnitt, gap = i, abs(stand - target)
-    return " ".join(sentences[:schnitt]), " ".join(sentences[schnitt:])
+    so_far, cut, gap = 0, 1, float("inf")
+    for i, sentence in enumerate(sentences[:-1], 1):
+        so_far += len(sentence) + 1
+        if abs(so_far - target) < gap:
+            cut, gap = i, abs(so_far - target)
+    return " ".join(sentences[:cut]), " ".join(sentences[cut:])
 
 
 def _rest_shape(s: Slide, a: Analysis) -> tuple[str, int | None]:

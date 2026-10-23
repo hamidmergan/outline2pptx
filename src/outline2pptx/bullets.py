@@ -49,7 +49,7 @@ def _model(ph):
     level = master.find(f".//{_P}bodyStyle/{_A}lvl1pPr")
     if level is not None and level.find(f"{_A}buChar") is not None:
         return level
-    ersatz = etree.Element(f"{_A}lvl1pPr", marL=str(_DEFAULT_INDENT), indent=str(-_DEFAULT_INDENT))
-    etree.SubElement(ersatz, f"{_A}buFont", typeface="Arial")
-    etree.SubElement(ersatz, f"{_A}buChar", char="•")
-    return ersatz
+    fallback = etree.Element(f"{_A}lvl1pPr", marL=str(_DEFAULT_INDENT), indent=str(-_DEFAULT_INDENT))
+    etree.SubElement(fallback, f"{_A}buFont", typeface="Arial")
+    etree.SubElement(fallback, f"{_A}buChar", char="•")
+    return fallback

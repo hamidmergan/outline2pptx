@@ -183,12 +183,12 @@ def ask_again(messages: list[dict], answer: str, thin: dict[str, str]) -> list[d
 def parse_answer(raw: str, rows: list[OutlineRow], specs: dict[str, dict],
                  notes: bool = False) -> list[Slide]:
     data = json_object(raw)
-    nach_id = _candidates(data)
-    if not nach_id:
+    by_id = _candidates(data)
+    if not by_id:
         raise Unusable("the answer holds no slides")
     slides: list[Slide] = []
     for r in rows:
-        e = nach_id.get(r.id)
+        e = by_id.get(r.id)
         if e is None:
             raise Unusable(f"slide {r.id} is missing from the answer")
         s = _slide(r, e, specs[r.id])
@@ -265,10 +265,10 @@ def _body(raw, form: dict) -> Body:
     kinds = form["body_kinds"]
     cards_max = (form.get("cards") or {}).get("max", MAX_CARDS)
     bars_max = form.get("bars") or MAX_BARS
-    schritte_max = (form.get("steps") or {}).get("max", MAX_STEPS)
+    steps_max = (form.get("steps") or {}).get("max", MAX_STEPS)
     levels_max = (form.get("levels") or {}).get("max", MAX_LEVELS)
-    kennzahlen_max = form.get("figures") or MAX_FIGURES
-    symbole_max = form.get("symbols") or MAX_SYMBOLS
+    figures_max = form.get("figures") or MAX_FIGURES
+    symbols_max = form.get("symbols") or MAX_SYMBOLS
     if not isinstance(raw, dict):
         return Body(kind="bullets", items=_items(raw))
     kind = str(raw.get("kind") or "bullets")
@@ -324,7 +324,7 @@ def _body(raw, form: dict) -> Body:
     elif kind in ("steps", "levels"):
         entries = [Entry(title=_text(e.get("title"))[:MAX_HEADING_CHARS], text=_text(e.get("text"))[:MAX_GIST_CHARS])
                      for e in _list(raw, kind) if _text(e.get("title"))]
-        limit, minimum = (schritte_max, MIN_STEPS) if kind == "steps" else (levels_max, MIN_LEVELS)
+        limit, minimum = (steps_max, MIN_STEPS) if kind == "steps" else (levels_max, MIN_LEVELS)
         entries = entries[:limit]
         if len(entries) < minimum:
             b.kind, b.items = "bullets", b.items or [_row_text(e.title, e.text) for e in entries]
@@ -333,13 +333,13 @@ def _body(raw, form: dict) -> Body:
     elif kind == "figures":
         # A key figure is a number, a value without a digit was a word the model dressed up as one.
         b.figures = [Figure(value=_text(z.get("value"))[:MAX_KEY_CHARS], label=_text(z.get("label"))[:MAX_HEADING_CHARS])
-                     for z in _list(raw, kind) if re.search(r"\d", _text(z.get("value")))][:kennzahlen_max]
+                     for z in _list(raw, kind) if re.search(r"\d", _text(z.get("value")))][:figures_max]
         if len(b.figures) < MIN_FIGURES:
             b.kind, b.items = "bullets", b.items or [_row_text(z.value, z.label) for z in b.figures]
             b.figures = []
     elif kind == "symbols":
         b.symbols = [Symbol(icon=icons.valid(z.get("icon")), label=_text(z.get("label"))[:MAX_HEADING_CHARS])
-                     for z in _list(raw, kind) if _text(z.get("label"))][:symbole_max]
+                     for z in _list(raw, kind) if _text(z.get("label"))][:symbols_max]
         if len(b.symbols) < MIN_SYMBOLS:
             b.kind, b.items = "bullets", b.items or [z.label for z in b.symbols]
             b.symbols = []
@@ -369,17 +369,17 @@ def _as_bullets(raw: dict) -> list[str]:
     for name in _LISTS:
         entries = _list(raw, name)
         if entries:
-            bullet_count = [_row_text(_text(e.get("value")), _text(e.get("label"))) if name == "figures"
+            points = [_row_text(_text(e.get("value")), _text(e.get("label"))) if name == "figures"
                       else _row_text(_text(e.get("title") or e.get("label")), _text(e.get("text"))) for e in entries]
-            return [p for p in bullet_count if p][:MAX_TEXT_ITEMS]
+            return [p for p in points if p][:MAX_TEXT_ITEMS]
     return []
 
 
 def _with_number(text: str, value: float) -> str:
     """A bar's text always shows its number, a text naming only the unit gets the number put in front."""
     number = f"{value:g}"
-    ziffern = re.sub(r"\D", "", number)
-    if not text or any(re.sub(r"\D", "", z) == ziffern for z in _NUMBER_RE.findall(text)):
+    digits = re.sub(r"\D", "", number)
+    if not text or any(re.sub(r"\D", "", z) == digits for z in _NUMBER_RE.findall(text)):
         return text
     return f"{number} {text}"
 

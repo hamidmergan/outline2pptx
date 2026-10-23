@@ -44,16 +44,16 @@ def hard_lines(text: str, font, width_pt: float) -> int:
     if width_pt <= 0:
         return 1
     n, current = 1, 0.0
-    leer = font.getlength(" ")
+    blank = font.getlength(" ")
     for word in text.split():
         w = font.getlength(word)
-        if current and current + leer + w > width_pt:
+        if current and current + blank + w > width_pt:
             n += 1
             current = 0.0
         if w > width_pt:
             n += int(w // width_pt)
             w = w % width_pt
-        current += (leer if current else 0.0) + w
+        current += (blank if current else 0.0) + w
     return n
 
 
@@ -78,8 +78,8 @@ def table(slide, field: Field, body: Body, f: Palette, typeface: str) -> None:
     cells = ([head + [""] * (columns - len(head))] if head else []) + [
         (r + [""] * columns)[:columns] for r in body.rows]
     size, widths, heights, side, top = _table_metrics(cells, field, typeface or "Calibri", bool(head))
-    rahmen = slide.shapes.add_table(len(cells), columns, field.left, field.top, field.width, sum(heights))
-    t = rahmen.table
+    frame = slide.shapes.add_table(len(cells), columns, field.left, field.top, field.width, sum(heights))
+    t = frame.table
     t._tbl.tblPr.find(qn("a:tableStyleId")).text = _NO_STYLE
     t.first_row = bool(head)
     t.horz_banding = False
@@ -107,21 +107,21 @@ def table(slide, field: Field, body: Body, f: Palette, typeface: str) -> None:
                 style_run(run, size, f.text_on() if is_header else RGBColor(0, 0, 0), is_header, typeface)
 
 
-def _column_widths(cells: list[list[str]], gesamt_pt: float, font, rand_pt: float) -> list[float] | None:
+def _column_widths(cells: list[list[str]], total_pt: float, font, margin_pt: float) -> list[float] | None:
     """Widths by text length when all fits one line, else each column its longest word first, None when even that overflows."""
     n = len(cells[0])
-    word = [max((font.getlength(w) for z in cells for w in z[c].split()), default=0.0) / _SLACK + rand_pt
+    word = [max((font.getlength(w) for z in cells for w in z[c].split()), default=0.0) / _SLACK + margin_pt
             for c in range(n)]
-    rest = gesamt_pt - sum(word)
+    rest = total_pt - sum(word)
     if rest < 0:
         return None
-    lang = [max(font.getlength(z[c]) for z in cells) / _SLACK + rand_pt for c in range(n)]
-    if sum(lang) <= gesamt_pt:
+    one_line = [max(font.getlength(z[c]) for z in cells) / _SLACK + margin_pt for c in range(n)]
+    if sum(one_line) <= total_pt:
         # Every cell fits one line, so the columns simply share the width by their length.
-        return [gesamt_pt * l / sum(lang) for l in lang]
+        return [total_pt * l / sum(one_line) for l in one_line]
     # Long text may wrap, so a column claims at most twice the mean however long its sentence.
-    cap = 2 * sum(lang) / n
-    need = [max(0.0, min(l, cap) - w) + 1 for l, w in zip(lang, word)]
+    cap = 2 * sum(one_line) / n
+    need = [max(0.0, min(l, cap) - w) + 1 for l, w in zip(one_line, word)]
     return [w + rest * b / sum(need) for w, b in zip(word, need)]
 
 
@@ -185,12 +185,12 @@ def chart(slide, field: Field, body: Body, f: Palette, typeface: str) -> None:
         chart.font.name = typeface
     chart.has_title = False
     plot = chart.plots[0]
-    bullet_count = len(body.categories) * len(body.series)
+    points = len(body.categories) * len(body.series)
     if kind == "pie":
         _pie(chart, plot, len(body.categories), f)
     else:
         _series(chart, plot, kind, len(body.series), f)
-        if bullet_count <= _MAX_LABELLED_POINTS:
+        if points <= _MAX_LABELLED_POINTS:
             plot.has_data_labels = True
             labels = plot.data_labels
             labels.number_format = "General"
@@ -222,13 +222,13 @@ def _series(chart, plot, kind: str, n: int, f: Palette) -> None:
     if n > 1:
         chart.legend.position = XL_LEGEND_POSITION.BOTTOM
         chart.legend.include_in_layout = False
-    grau = RGBColor.from_string(fb.GRIDLINE)
+    grey = RGBColor.from_string(fb.GRIDLINE)
     value = chart.value_axis
     value.has_major_gridlines = True
-    value.major_gridlines.format.line.color.rgb = grau
+    value.major_gridlines.format.line.color.rgb = grey
     value.major_gridlines.format.line.width = Pt(0.75)
     value.format.line.fill.background()
-    chart.category_axis.format.line.color.rgb = grau
+    chart.category_axis.format.line.color.rgb = grey
 
 
 def _pie(chart, plot, n: int, f: Palette) -> None:

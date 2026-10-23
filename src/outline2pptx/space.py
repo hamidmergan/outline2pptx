@@ -10,7 +10,7 @@ from .fonts import load_font
 
 # Air between the heading's last line and the content, in lines of the content's own text.
 AIR_LINES = 1.0
-_ZEILE = 1.2
+_LINE_RATIO = 1.2
 # A content area keeps at least this share of its height however far a long heading pushes it.
 _MIN_REMAINING = 0.5
 _BELOW_HEAD = ("body", "subheading", "picture")
@@ -20,7 +20,7 @@ def line_height(field: Field, size: float) -> float:
     """Line pitch in points: the template's fixed pitch scaled with the font, else the usual 1.2."""
     if field.line_pt and field.size_pt:
         return field.line_pt * size / field.size_pt
-    return size * _ZEILE
+    return size * _LINE_RATIO
 
 
 def head_lines(text: str, field: Field, typeface: str, size: float) -> int:
@@ -52,17 +52,17 @@ def moved(fields: list[Field], head: Field, bottom: int, air: int, slide_height:
     beneath = below(fields, head)
     if not beneath:
         return {}
-    oben_alt = min(f.top for f in beneath)
-    unten_alt = max(f.top + f.height for f in beneath)
+    old_top = min(f.top for f in beneath)
+    old_bottom = max(f.top + f.height for f in beneath)
     target = bottom + air
-    if target <= oben_alt:
+    if target <= old_top:
         return {}
-    spanne = unten_alt - oben_alt
+    span = old_bottom - old_top
     ratio = 1.0 if all(f.kind == "subheading" for f in beneath) else _MIN_REMAINING
-    moved_fields = max(unten_alt - target, int(spanne * ratio))
-    moved_fields = max(0, min(moved_fields, slide_height - target))
-    factor = moved_fields / spanne if spanne else 1.0
-    return {f.idx: replace(f, top=target + int((f.top - oben_alt) * factor), height=int(f.height * factor))
+    new_height = max(old_bottom - target, int(span * ratio))
+    new_height = max(0, min(new_height, slide_height - target))
+    factor = new_height / span if span else 1.0
+    return {f.idx: replace(f, top=target + int((f.top - old_top) * factor), height=int(f.height * factor))
             for f in beneath}
 
 
@@ -70,4 +70,4 @@ def air(fields: list[Field]) -> int:
     """One line of the content's own text, taken from the first text field below the heading."""
     size = next((f.size_pt for f in fields if f.kind == "body" and f.size_pt), 0.0) or next(
         (f.size_pt for f in fields if f.kind == "subheading" and f.size_pt), 16.0)
-    return int(AIR_LINES * size * _ZEILE * EMU_PER_PT)
+    return int(AIR_LINES * size * _LINE_RATIO * EMU_PER_PT)

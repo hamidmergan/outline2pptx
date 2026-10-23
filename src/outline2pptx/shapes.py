@@ -127,12 +127,12 @@ def _card_grid(cards_: list[Card], field: Field, g: float, typeface: str) -> tup
         rows = grid.distribution(len(cards_), columns)
         card_w = (width - gap * (max(rows) - 1)) / max(rows)
         fits, factor, mass = _card_metrics(cards_, card_w, height, len(rows), gap, g, typeface)
-        kandidat = (rows, card_w, mass)
+        candidate = (rows, card_w, mass)
         if fits and (best is None or factor > best[0] + 1e-9):
-            best = (factor, kandidat)
-        head_fields = len(rows) * mass[4] + (len(rows) - 1) * gap - height
-        if fallback is None or head_fields < fallback[0] - 1e-9:
-            fallback = (head_fields, kandidat)
+            best = (factor, candidate)
+        overflow = len(rows) * mass[4] + (len(rows) - 1) * gap - height
+        if fallback is None or overflow < fallback[0] - 1e-9:
+            fallback = (overflow, candidate)
     return (best or fallback)[1]
 
 
@@ -216,12 +216,12 @@ def bars(slide, field: Field, bars_: list[Bar], f: Palette, typeface: str) -> No
         length = max(thickness, track_w * max(0.0, min(1.0, ratio)))
         _shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, track_x, y, length, thickness, f.tint(fb.FULL), 0.5)
         text = b.text or _num(b.value)
-        breit = font_for(typeface, value_pt, True).getlength(text) + thickness
-        if breit <= length:
+        text_w = font_for(typeface, value_pt, True).getlength(text) + thickness
+        if text_w <= length:
             tf = _textbox(slide, track_x, y, length, thickness, MSO_ANCHOR.MIDDLE, PP_ALIGN.CENTER)
             color = f.text_on()
         else:
-            tf = _textbox(slide, track_x + length + thickness / 3, y, max(breit, track_w - length - thickness / 3), thickness,
+            tf = _textbox(slide, track_x + length + thickness / 3, y, max(text_w, track_w - length - thickness / 3), thickness,
                            MSO_ANCHOR.MIDDLE)
             color = f.text_color()
         run = tf.paragraphs[0].add_run()

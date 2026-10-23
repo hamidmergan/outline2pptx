@@ -21,7 +21,7 @@ _CIRCLE = 1.2
 _CIRCLE_SHARE = 0.5
 _NUMBER = 0.45
 # The line joining the steps, as a share of the circle, and the air between steps below each other.
-_LINIE = 0.08
+_JOIN = 0.08
 _ROW_AIR = 0.6
 # A key figure at most this many times the base size, the lines between them this thin.
 _MAX_VALUE_PT = 3.6
@@ -143,7 +143,7 @@ def steps_figure(slide, field: Field, steps: list[Entry], f: Palette, typeface: 
     vertical = n > 1 and _better(stacked, side_by_side)
     title_pt, text_pt, d, h, lines, air = (stacked if vertical else side_by_side)[2]
     top += max(0.0, (height - h) * _TOP_SHARE)
-    thickness = max(1.5, d * _LINIE)
+    thickness = max(1.5, d * _JOIN)
     if vertical:
         tops = [top + sum(lines[:i]) + i * air for i in range(n)]
         _shape(slide, MSO_SHAPE.RECTANGLE, left + (d - thickness) / 2, tops[0] + d / 2, thickness, tops[-1] - tops[0],
@@ -207,12 +207,12 @@ def figures(slide, field: Field, numbers: list[Figure], f: Palette, typeface: st
 # Levels
 
 
-def _polygon(slide, bullet_count: list[tuple[float, float]], color):
+def _polygon(slide, points: list[tuple[float, float]], color):
     """A closed polygon from points on the slide, the same outline in PowerPoint and LibreOffice."""
-    x0, y0 = bullet_count[0]
-    bauer = slide.shapes.build_freeform(_emu(x0), _emu(y0), scale=1.0)
-    bauer.add_line_segments([(_emu(x), _emu(y)) for x, y in bullet_count[1:]], close=True)
-    return _fill(bauer.convert_to_shape(), color)
+    x0, y0 = points[0]
+    builder = slide.shapes.build_freeform(_emu(x0), _emu(y0), scale=1.0)
+    builder.add_line_segments([(_emu(x), _emu(y)) for x, y in points[1:]], close=True)
+    return _fill(builder.convert_to_shape(), color)
 
 
 def levels(slide, field: Field, levels_: list[Entry], f: Palette, typeface: str) -> None:

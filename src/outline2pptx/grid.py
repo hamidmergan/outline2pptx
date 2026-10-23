@@ -73,10 +73,10 @@ def distribution(n: int, columns_max: int) -> list[int]:
     if n <= 0:
         return []
     rows = math.ceil(n / max(1, columns_max))
-    breit = math.ceil(n / rows)
+    per_row = math.ceil(n / rows)
     out, rest = [], n
     for r in range(rows):
-        k = min(breit, rest - (rows - r - 1))
+        k = min(per_row, rest - (rows - r - 1))
         k = max(1, min(k, math.ceil(rest / (rows - r))))
         out.append(k)
         rest -= k
