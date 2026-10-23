@@ -2,9 +2,11 @@ from io import BytesIO
 
 import pytest
 from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from outline2pptx.deck import build_deck, date_text, layout_index
-from outline2pptx import library, split, template
+from outline2pptx import colors, library, split, template
 from outline2pptx.schemas import (
     Bar, Body, Card, Column, Entry, Figure, Series, Slide, Symbol,
 )
@@ -29,6 +31,31 @@ def texts(prs):
             if shape.has_text_frame and shape.text_frame.text.strip():
                 out.append(shape.text_frame.text)
     return out
+
+
+def harvest(slide):
+    """Every string the slide really carries, plus its pictures and its charts."""
+    found = {"text": [], "pictures": 0, "charts": [], "runs": []}
+    for shape in slide.shapes:
+        if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+            found["pictures"] += 1
+        if shape.has_text_frame:
+            found["text"].append(shape.text_frame.text)
+            for paragraph in shape.text_frame.paragraphs:
+                found["runs"].extend((r.text, r.font.size, r.font.color) for r in paragraph.runs)
+        if getattr(shape, "has_table", False):
+            for row in shape.table.rows:
+                found["text"].extend(cell.text for cell in row.cells)
+        if getattr(shape, "has_chart", False):
+            chart = shape.chart
+            found["charts"].append({
+                "categories": [str(c) for c in chart.plots[0].categories],
+                "series": {s.name: list(s.values) for s in chart.series}})
+    return found
+
+
+def strings_of(slide):
+    return [t for t in harvest(slide)["text"] if t.strip()]
 
 
 def reopen(data):
@@ -86,15 +113,116 @@ def test_every_template_builds_a_deck(name):
     assert "One thought" in texts(prs)
 
 
+# The strings of every BODIES fixture that have to come back out of the file.
+EXPECTED = {
+    "bullets": ["Point number 1 on this slide", "Point number 6 on this slide"],
+    "table": ["Thing", "Value", "One", "1", "Two", "2"],
+    "chart": [],
+    "cards": ["Read", "Start here.", "Practice", "Every day."],
+    "bars": ["First", "10 %", "Second", "40 %"],
+    "figures": ["8 h", "Per week", "12", "Chapters"],
+    "steps": ["Plan", "Decide what to do.", "Do", "Carry it out.", "Check", "Look at it."],
+    "levels": ["Top", "The highest.", "Middle", "Below the top.", "Base", "The widest."],
+    "symbols": ["Reading", "Time", "Research"],
+    "highlight": ["42"],
+}
+# Icons are pictures, so a card and a symbol slide carries one per entry.
+PICTURES = {"cards": 2, "symbols": 3}
+
+
+@pytest.mark.parametrize("name", TEMPLATES)
 @pytest.mark.parametrize("kind", sorted(BODIES))
-def test_every_body_kind_builds(kind, clean):
+def test_every_body_kind_puts_its_values_in_the_file(kind, name):
+    loaded = library.load(name)
     slides = [Slide(id="s1", role="cover", title="A Deck"),
               Slide(id="s2", role="text", title=f"A slide of {kind}", body=BODIES[kind]),
               Slide(id="s3", role="closing", title="Done")]
-    prs = reopen(deck_of(slides, clean))
+    prs = reopen(deck_of(slides, loaded))
     assert len(prs.slides._sldIdLst) == 3
-    shapes = list(prs.slides[1].shapes)
-    assert len(shapes) > 1
+    found = harvest(prs.slides[1])
+    written = " \n".join(found["text"])
+    assert f"A slide of {kind}" in written
+    for wanted in EXPECTED[kind]:
+        assert wanted in written, f"{kind} lost {wanted!r} on {name}"
+    assert found["pictures"] == PICTURES.get(kind, 0)
+
+
+def test_a_chart_carries_its_categories_and_values(clean):
+    slides = [Slide(id="s1", role="cover", title="A Deck"),
+              Slide(id="s2", role="text", title="Numbers", body=BODIES["chart"])]
+    charts = harvest(reopen(deck_of(slides, clean)).slides[1])["charts"]
+    assert len(charts) == 1
+    assert charts[0]["categories"] == ["A", "B"]
+    assert charts[0]["series"] == {"Count": [1.0, 2.0]}
+
+
+def test_a_table_header_takes_the_template_colour_and_the_rows_band(clean):
+    data, analysis, _ = clean
+    palette = colors.from_template(Presentation(BytesIO(data)), analysis)
+    body = Body(kind="table", header=["Thing", "Value"],
+                rows=[["One", "1"], ["Two", "2"], ["Three", "3"]])
+    slides = [Slide(id="s1", role="cover", title="A Deck"),
+              Slide(id="s2", role="text", title="A table", body=body)]
+    table = next(sh.table for sh in reopen(deck_of(slides, clean)).slides[1].shapes
+                 if getattr(sh, "has_table", False))
+    fills = [table.cell(r, 0).fill.fore_color.rgb for r in range(4)]
+    assert fills[0] == palette.tint(colors.FULL)
+    assert fills[1] == RGBColor(0xFF, 0xFF, 0xFF)
+    assert fills[2] == palette.tint(colors.BAND)
+    assert fills[3] == RGBColor(0xFF, 0xFF, 0xFF)
+
+
+def test_a_highlight_marks_its_emphasis_in_the_template_colour(clean):
+    data, analysis, _ = clean
+    palette = colors.from_template(Presentation(BytesIO(data)), analysis)
+    slides = [Slide(id="s1", role="cover", title="A Deck"),
+              Slide(id="s2", role="text", title="One number", body=BODIES["highlight"])]
+    runs = [(text, color) for text, _, color in harvest(reopen(deck_of(slides, clean)).slides[1])["runs"]]
+    sentence = [r for r in runs if r[0] in ("The ", "answer", " is 42 in the end.")]
+    assert [text for text, _ in sentence] == ["The ", "answer", " is 42 in the end."]
+    assert sentence[1][1].rgb == palette.text_color()
+    assert sentence[0][1].rgb != palette.text_color()
+
+
+def test_bullets_that_overflow_come_out_smaller(clean):
+    _, analysis, _ = clean
+    field = analysis.layout(analysis.roles["text"][0]).of_kind("body")[0]
+    many = [f"Point number {n}, a sentence long enough on its own that the whole list "
+            f"cannot possibly keep the size the template asks for" for n in range(1, 9)]
+    few = ["One", "Two"]
+    slides = [Slide(id="s1", role="cover", title="A Deck"),
+              Slide(id="s2", role="text", title="Many", body=Body(kind="bullets", items=many)),
+              Slide(id="s3", role="text", title="Few", body=Body(kind="bullets", items=few))]
+    prs = reopen(deck_of(slides, clean))
+    shrunk = [size for _, size, _ in harvest(prs.slides[1])["runs"] if size is not None]
+    kept = [size for _, size, _ in harvest(prs.slides[2])["runs"] if size is not None]
+    assert shrunk and max(shrunk).pt < field.size_pt
+    assert not kept or max(kept).pt >= field.size_pt
+
+
+def test_a_long_heading_is_shrunk_and_the_body_moves_down(clean):
+    _, analysis, _ = clean
+    index = analysis.roles["text"][0]
+    body_field = analysis.layout(index).of_kind("body")[0]
+    long_title = ("A heading so long that it needs three whole lines of the slide before the "
+                  "points below it can begin at all")
+    slides = [Slide(id="s1", role="cover", title="A Deck"),
+              Slide(id="s2", role="text", layout=index, title=long_title,
+                    body=Body(kind="bullets", items=["One", "Two", "Three"])),
+              Slide(id="s3", role="text", layout=index, title="Short",
+                    body=Body(kind="bullets", items=["One", "Two", "Three"]))]
+    prs = reopen(deck_of(slides, clean))
+
+    def head_and_body(slide):
+        boxes = sorted(((sh.top, sh) for sh in slide.shapes if sh.has_text_frame), key=lambda x: x[0])
+        return boxes[0][1], boxes[1][1]
+
+    long_head, long_body = head_and_body(prs.slides[1])
+    short_head, short_body = head_and_body(prs.slides[2])
+    long_size = long_head.text_frame.paragraphs[0].runs[0].font.size
+    assert long_size is not None and long_size.pt < analysis.layout(index).of_kind("heading")[0].size_pt
+    assert long_body.top > short_body.top
+    assert long_body.height < body_field.height
 
 
 def test_two_columns_writes_both_columns(clean):
@@ -138,6 +266,52 @@ def test_the_notice_lands_on_every_slide(clean):
               Slide(id="s2", role="closing", title="Done")]
     written = texts(reopen(deck_of(slides, clean, notice="Built with a model")))
     assert sum(1 for t in written if t == "Built with a model") == 2
+
+
+def boxes_of(prs):
+    """Name, top, height and text of every text shape of every slide."""
+    return [(shape.name, shape.top, shape.height, shape.text_frame.text)
+            for slide in prs.slides for shape in slide.shapes if shape.has_text_frame]
+
+
+@pytest.mark.parametrize("name", TEMPLATES)
+def test_the_bottom_strip_carries_date_number_and_presenter(name):
+    loaded = library.load(name)
+    slides = [Slide(id="s1", role="cover", title="A Deck", subtitle="About things"),
+              Slide(id="s2", role="text", title="Points", body=BODIES["bullets"])]
+    prs = reopen(deck_of(slides, loaded, date="Mar 15, 2026", presenter="Jane"))
+    found = boxes_of(prs)
+    assert [t for *_, t in found if t == "Jane"], "the presenter never reached the cover"
+    assert [t for *_, t in found if t == "Mar 15, 2026"], "the date never reached the slide"
+    assert [t for *_, t in found if t == "2"], "the slide number never reached the slide"
+    for shape_name, top, height, _ in found:
+        assert top and height, f"{shape_name} has no box of its own"
+
+
+@pytest.mark.parametrize("name", TEMPLATES)
+def test_the_bottom_strip_sits_below_the_body_area(name):
+    data, analysis, _ = library.load(name)
+    prs = reopen(data)
+    strip = {"DATE (16)", "FOOTER (15)", "SLIDE_NUMBER (13)"}
+    for layout in prs.slide_masters[0].slide_layouts:
+        boxes = {str(ph.placeholder_format.type): ph for ph in layout.placeholders}
+        assert strip <= set(boxes), f"{layout.name} misses part of the bottom strip"
+        content = [ph for key, ph in boxes.items() if key not in strip]
+        lowest = max((ph.top + ph.height for ph in content), default=0)
+        for key in strip:
+            ph = boxes[key]
+            assert ph.top and ph.height, f"{key} of {layout.name} has no box of its own"
+            assert ph.top >= lowest, f"{key} of {layout.name} runs into the content"
+            assert ph.top + ph.height <= analysis.height
+
+
+def test_the_presenter_only_lands_on_the_cover(clean):
+    slides = [Slide(id="s1", role="cover", title="A Deck"),
+              Slide(id="s2", role="text", title="Points", body=BODIES["bullets"])]
+    prs = reopen(deck_of(slides, clean, presenter="Jane"))
+    first = [t for *_, t in boxes_of(prs) if t == "Jane"]
+    assert len(first) == 1
+    assert "Jane" in [sh.text_frame.text for sh in prs.slides[0].shapes if sh.has_text_frame]
 
 
 def test_date_text_follows_the_language():

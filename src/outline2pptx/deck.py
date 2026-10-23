@@ -257,6 +257,7 @@ def date_text(language: str, day: date | None = None) -> str:
 
 
 _A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+_P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 
 
 def _from_layout(slide, ph_type):
@@ -301,9 +302,34 @@ def _place(shape, field: Field) -> None:
 def _slide_number(slide, number: int) -> None:
     """The layout's slide number field, still a field so PowerPoint renumbers moved slides."""
     el = _from_layout(slide, PP_PLACEHOLDER.SLIDE_NUMBER)
-    if el is not None:
-        for t in el.iter(f"{_A}t"):
-            t.text = str(number)
+    if el is None:
+        return
+    texts = list(el.iter(f"{_A}t"))
+    if not texts:
+        # A placeholder with an empty paragraph and no field of its own still gets the number.
+        texts = [t for t in (_fresh_text(el),) if t is not None]
+    for t in texts:
+        t.text = str(number)
+
+
+def _fresh_text(el):
+    """A new empty ``a:t`` in this placeholder's first paragraph, for a body that holds no run at all."""
+    body = el.find(f"{_P}txBody")
+    if body is None:
+        return None
+    paragraph = body.find(f"{_A}p")
+    if paragraph is None:
+        paragraph = etree.SubElement(body, f"{_A}p")
+    run = etree.Element(f"{_A}r")
+    end = paragraph.find(f"{_A}endParaRPr")
+    if end is not None:
+        # The run takes the formatting of the empty paragraph and goes before its end marker.
+        run.append(deepcopy(end))
+        run[0].tag = f"{_A}rPr"
+        end.addprevious(run)
+    else:
+        paragraph.append(run)
+    return etree.SubElement(run, f"{_A}t")
 
 
 def _fixed(slide, ph_type, text: str) -> None:
@@ -323,8 +349,13 @@ def _fixed(slide, ph_type, text: str) -> None:
     texts = list(el.iter(f"{_A}t"))
     for t in texts:
         t.text = ""
-    if texts:
-        texts[0].text = text
+    if not texts:
+        # A footer placeholder often ships as an empty paragraph without a run, it gets one here.
+        fresh = _fresh_text(el)
+        if fresh is None:
+            return
+        texts = [fresh]
+    texts[0].text = text
 
 
 def _notice(prs, slide, text: str, typeface: str) -> None:
