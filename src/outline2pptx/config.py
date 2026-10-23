@@ -11,6 +11,8 @@ from typing import Optional
 from .errors import ConfigError
 from .schemas import DEFAULT_TEMPLATE, MAX_SLIDES, MIN_SLIDES
 
+__all__ = ["Settings", "resolve", "MAX_SLIDES", "MIN_SLIDES"]
+
 # Limits
 MAX_OUTLINE_CHARS = 200_000
 MAX_TOPIC_CHARS = 2000

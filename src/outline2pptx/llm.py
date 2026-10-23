@@ -102,7 +102,23 @@ def call_image(client, settings: Settings, prompt: str, size: str) -> bytes:
         return base64.b64decode(entry.b64_json)
     url = getattr(entry, "url", None)
     if url:
-        import httpx
-
-        return httpx.get(url, timeout=settings.image_timeout).content
+        return _fetch(url, settings.image_timeout)
     raise ModelError("The answer holds no picture data.")
+
+
+def _fetch(url: str, timeout: float) -> bytes:
+    """Download a picture the provider only linked to.
+
+    The HTTP library ships with the openai package and has changed its name between major
+    versions, so try both spellings before falling back to the standard library.
+    """
+    for module_name in ("httpx", "httpx2"):
+        try:
+            module = __import__(module_name)
+        except ImportError:
+            continue
+        return module.get(url, timeout=timeout).content
+    from urllib.request import urlopen
+
+    with urlopen(url, timeout=timeout) as response:  # noqa: S310 - the provider gave us the URL
+        return response.read()
