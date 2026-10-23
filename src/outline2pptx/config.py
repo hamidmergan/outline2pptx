@@ -35,7 +35,7 @@ DEFAULT_STYLE_TEXT = (
 DEFAULT_NOTICE = ""
 
 # Placeholder, because the OpenAI library requires a value. Local servers ignore it.
-PLACEHOLDER_API_KEY = "not-needed"
+PLACEHOLDER_API_KEY = "none"
 
 ENV_PREFIX = "OUTLINE2PPTX_"
 

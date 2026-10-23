@@ -144,6 +144,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.outline and args.topic:
             _err("Give either an outline file or --topic, not both.")
             return 2
+        if args.outline and args.slides is not None:
+            _err("--slides plans an outline from --topic. An outline file sets its own slides.")
+            return 2
 
         options = _model_options(args)
         if args.topic:
@@ -159,9 +162,17 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         deck = api.build(outline_md, _default_output(args), images=args.images or None,
                          progress=progress, **options)
-        _err(f"Wrote {_default_output(args)} with {deck.info['slides']} slides.")
+        written = _default_output(args)
+        _err(f"Wrote {written} with {deck.info['slides']} slides.")
         if args.preview:
-            _write_preview(deck, args.preview)
+            try:
+                _write_preview(deck, args.preview)
+            except DeckError as exc:
+                # The deck is on disk and correct. Only the extra pictures are missing, so say
+                # which half failed instead of letting the caller read this as a lost deck.
+                _err(f"Error: {exc}")
+                _err(f"The deck {written} was written, only the preview is missing.")
+                return 2
         return 0
     except DeckError as exc:
         _err(f"Error: {exc}")

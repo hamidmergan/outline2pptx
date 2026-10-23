@@ -143,25 +143,47 @@ def test_settings_can_come_from_the_environment(server, outline_file, tmp_path, 
     assert out.exists()
 
 
-def test_preview_says_so_without_libreoffice(server, outline_file, tmp_path, monkeypatch, capsys):
+def test_a_failed_preview_keeps_the_deck_it_already_wrote(server, outline_file, tmp_path,
+                                                          monkeypatch, capsys):
     server.slides = answer_for_batch
     monkeypatch.setattr("outline2pptx.render.available", lambda: False)
     out = tmp_path / "deck.pptx"
     code = cli.main([str(outline_file), "-o", str(out), "--preview", str(tmp_path / "png"),
                      *flags(server)])
+    err = capsys.readouterr().err
     assert code == 2
-    assert "LibreOffice" in capsys.readouterr().err
+    assert "LibreOffice" in err
+    # The deck is the point of the run. It stays on disk and the message says which half failed.
+    assert out.exists() and out.stat().st_size > 0
+    assert "only the preview is missing" in err
+    assert Presentation(BytesIO(out.read_bytes())).slides
 
 
-def test_preview_writes_one_png_per_slide(server, outline_file, tmp_path, monkeypatch):
+def test_the_preview_writes_one_png_per_slide_of_the_deck(server, outline_file, tmp_path,
+                                                          monkeypatch):
     server.slides = answer_for_batch
     monkeypatch.setattr("outline2pptx.render.available", lambda: True)
-    monkeypatch.setattr("outline2pptx.preview.render", lambda data, dpi=80: [b"png1", b"png2"])
+
+    def one_per_slide(data, dpi=80):
+        count = len(Presentation(BytesIO(data)).slides._sldIdLst)
+        return [f"page {n}".encode() for n in range(1, count + 1)]
+
+    monkeypatch.setattr("outline2pptx.preview.render", one_per_slide)
     out = tmp_path / "deck.pptx"
     folder = tmp_path / "png"
     assert cli.main([str(outline_file), "-o", str(out), "--preview", str(folder),
                      *flags(server)]) == 0
-    assert sorted(p.name for p in folder.iterdir()) == ["slide-01.png", "slide-02.png"]
+    slides = len(Presentation(BytesIO(out.read_bytes())).slides._sldIdLst)
+    files = sorted(folder.iterdir())
+    assert [f.name for f in files] == [f"slide-{n:02d}.png" for n in range(1, slides + 1)]
+    assert [f.read_bytes() for f in files] == [f"page {n}".encode()
+                                               for n in range(1, slides + 1)]
+
+
+def test_slides_with_an_outline_file_is_refused(capsys, outline_file, server):
+    code = cli.main([str(outline_file), "--slides", "12", *flags(server)])
+    assert code == 2
+    assert "--slides" in capsys.readouterr().err
 
 
 def test_serve_without_the_extra_packages_says_what_to_install(capsys, monkeypatch):

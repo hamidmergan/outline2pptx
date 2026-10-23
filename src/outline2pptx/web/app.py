@@ -100,6 +100,9 @@ def create_app(defaults: Optional[dict] = None,
     base = {k: v for k, v in (defaults or {}).items() if v not in (None, "")}
     job = Job()
     lock = threading.Lock()
+    # An outline is planned inside the request, so it has no job state to hold. This flag is
+    # all it needs: one outline at a time, and no build while one is being planned.
+    planning = threading.Event()
 
     app = FastAPI(title="outline2pptx", version=__version__)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -179,12 +182,16 @@ def create_app(defaults: Optional[dict] = None,
         if not topic:
             raise HTTPException(400, "Enter a topic first.")
         with lock:
-            if job.state == "running":
+            if job.state == "running" or planning.is_set():
                 raise HTTPException(409, "A presentation is being created right now.")
+            planning.set()
         try:
             text = api.outline_from_topic(topic, slides=request.slides, **options(request))
         except DeckError as exc:
             raise HTTPException(400, str(exc)) from None
+        finally:
+            with lock:
+                planning.clear()
         return {"outline": text}
 
     def run(request: BuildRequest, text: str) -> None:
@@ -218,7 +225,7 @@ def create_app(defaults: Optional[dict] = None,
         if not text:
             raise HTTPException(400, "The outline is empty.")
         with lock:
-            if job.state == "running":
+            if job.state == "running" or planning.is_set():
                 raise HTTPException(409, "A presentation is being created right now.")
             try:
                 resolve(**options(request, notes=request.notes, images=request.images))

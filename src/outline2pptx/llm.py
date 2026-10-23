@@ -109,16 +109,13 @@ def call_image(client, settings: Settings, prompt: str, size: str) -> bytes:
 def _fetch(url: str, timeout: float) -> bytes:
     """Download a picture the provider only linked to.
 
-    The HTTP library ships with the openai package and has changed its name between major
-    versions, so try both spellings before falling back to the standard library.
+    httpx comes with the openai package. The standard library stands in if it ever does not.
     """
-    for module_name in ("httpx", "httpx2"):
-        try:
-            module = __import__(module_name)
-        except ImportError:
-            continue
-        return module.get(url, timeout=timeout).content
-    from urllib.request import urlopen
+    try:
+        import httpx
+    except ImportError:
+        from urllib.request import urlopen
 
-    with urlopen(url, timeout=timeout) as response:  # noqa: S310 - the provider gave us the URL
-        return response.read()
+        with urlopen(url, timeout=timeout) as response:  # noqa: S310 - the provider gave us the URL
+            return response.read()
+    return httpx.get(url, timeout=timeout).content

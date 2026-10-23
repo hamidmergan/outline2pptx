@@ -176,3 +176,37 @@ def test_the_preview_serves_one_png_per_slide(server, monkeypatch):
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
     assert client.get("/api/preview/9").status_code == 404
+
+
+def test_a_second_outline_is_refused_while_one_is_being_planned(server, monkeypatch):
+    """One call to the model at a time, so two browser tabs cannot plan two outlines at once."""
+    import threading
+
+    started, go = threading.Event(), threading.Event()
+
+    def slow(topic, **kwargs):
+        started.set()
+        assert go.wait(10)
+        return OUTLINE_MD
+
+    monkeypatch.setattr("outline2pptx.api.outline_from_topic", slow)
+    client = make_client(server)
+    first: dict = {}
+
+    def plan():
+        first["response"] = client.post("/api/outline", json={"topic": "Bees"})
+
+    worker = threading.Thread(target=plan)
+    worker.start()
+    try:
+        assert started.wait(10)
+        second = client.post("/api/outline", json={"topic": "Bees"})
+        build = client.post("/api/build", json={"outline": OUTLINE_MD})
+    finally:
+        go.set()
+        worker.join(10)
+    assert second.status_code == 409
+    assert build.status_code == 409
+    assert first["response"].status_code == 200
+    # The flag is cleared again, so the next call goes through.
+    assert client.post("/api/outline", json={"topic": "Bees"}).status_code == 200
