@@ -3,7 +3,9 @@
 __version__ = "0.1.0"
 
 from .api import Deck, build, list_templates, outline_from_topic
-from .errors import ConfigError, DeckError, ModelError, PreviewError, TemplateError
+from .errors import (
+    ConfigError, DeckError, ModelError, OutlineError, PreviewError, TemplateError,
+)
 
 __all__ = [
     "Deck",
@@ -14,6 +16,7 @@ __all__ = [
     "ConfigError",
     "TemplateError",
     "ModelError",
+    "OutlineError",
     "PreviewError",
     "__version__",
 ]

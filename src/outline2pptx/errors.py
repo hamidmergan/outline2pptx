@@ -14,5 +14,9 @@ class ModelError(DeckError):
     """The model server did not answer, or the answer was unusable."""
 
 
+class OutlineError(DeckError):
+    """A hand-written outline cannot be used as it stands."""
+
+
 class PreviewError(DeckError):
     """The slide preview could not be rendered."""

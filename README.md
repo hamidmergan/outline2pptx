@@ -121,7 +121,7 @@ A heading with no text under it becomes a section divider. A heading with text b
 | `two_columns` | A heading with two or more columns, each with its own subheading |
 | `text_with_image` | A heading, bullets and one or more illustrations |
 
-The cover and the closing slide are added from the title and the last heading. A deck has between 3 and 30 slides.
+The cover and the closing slide are added from the title and the last heading. A deck has between 3 and 30 slides. An outline file outside that range is refused with an error naming the limit, so split a longer plan into several decks. Nothing in an outline file is ever dropped or renamed, and every heading needs a title of its own, a role tag alone is not enough.
 
 ### Python API
 

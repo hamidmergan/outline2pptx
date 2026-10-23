@@ -2,6 +2,7 @@ import pytest
 
 from conftest import outline_answer
 from outline2pptx import outline as ol
+from outline2pptx.errors import OutlineError
 from outline2pptx.schemas import SELECTABLE_ROLES, Outline, OutlineRow, DeckParams
 
 ROLES = list(SELECTABLE_ROLES)
@@ -95,9 +96,51 @@ def test_from_markdown_reads_title_and_rows():
     assert out.rows[2].gist == "Labels guide the model towards the right answer."
 
 
-def test_from_markdown_without_headings_is_unusable():
-    with pytest.raises(ol.Unusable):
+def test_from_markdown_without_headings_is_refused():
+    with pytest.raises(OutlineError, match="no headings"):
         ol.from_markdown("just a paragraph")
+
+
+def test_a_long_outline_is_refused_and_never_cut_down():
+    """40 headings in: the author hears about the limit instead of losing eleven slides."""
+    text = "# A Deck\n\nAbout things\n\n" + "".join(
+        f"## Heading {n}\n\nIt shows point {n}.\n\n" for n in range(1, 41))
+    with pytest.raises(OutlineError) as caught:
+        ol.from_markdown(text, ROLES)
+    message = str(caught.value)
+    assert "41 slides" in message and "3 to 30" in message
+    assert "Nothing of the outline is dropped" in message
+
+
+def test_an_outline_at_the_limit_keeps_every_slide_and_its_own_last_title():
+    text = "# A Deck\n\nAbout things\n\n" + "".join(
+        f"## Heading {n}\n\nIt shows point {n}.\n\n" for n in range(1, 30))
+    out = ol.from_markdown(text, ROLES)
+    assert len(out.rows) == 30
+    assert out.rows[-1].title == "Heading 29"
+    assert out.rows[-1].role == "closing"
+
+
+def test_a_short_outline_is_refused_with_the_same_limit():
+    with pytest.raises(OutlineError, match="3 to 30"):
+        ol.from_markdown("# A Deck\n\n## One\n\nA gist.\n")
+
+
+def test_a_heading_that_is_only_a_role_tag_is_refused():
+    """The reviewer's own file: ``## [text]`` carries no title, so no slide can be built from it."""
+    text = ("## [text] One\n\na\n\n## [text]\n\n## [two_columns] Three\n\nb\n\n"
+            "## [text] Four\n\nc\n")
+    with pytest.raises(OutlineError, match="no title, only a role tag"):
+        ol.from_markdown(text, ROLES)
+
+
+def test_every_role_tag_lands_on_the_slide_that_names_it():
+    text = ("# T\n\n## [text] One\n\na\n\n## [section] Two\n\n## [two_columns] Three\n\nb\n\n"
+            "## [text] Four\n\nc\n\n## Five\n\nd\n")
+    out = ol.from_markdown(text, ROLES)
+    assert [(r.title, r.role) for r in out.rows] == [
+        ("T", "cover"), ("One", "text"), ("Two", "section"), ("Three", "two_columns"),
+        ("Four", "text"), ("Five", "closing")]
 
 
 def test_markdown_round_trip():

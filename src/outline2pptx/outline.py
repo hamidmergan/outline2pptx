@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-from .errors import ModelError
+from .errors import ModelError, OutlineError
 from .schemas import (
     SELECTABLE_ROLES, SLIDE_BOUNDS, Outline, OutlineRow, DeckParams,
 )
@@ -176,6 +176,9 @@ def from_markdown(text: str, roles: list[str] | None = None,
     further heading is one slide, the lines under it are its gist. A heading may name its role
     in square brackets, otherwise the nesting decides: a heading with no text under it is a
     section divider, one with text is a text slide.
+
+    The file is the author's own plan, so nothing in it is dropped or renamed. A file outside the
+    slide bounds is refused with an error naming the limit, never cut down to fit.
     """
     title, subtitle = "", ""
     rows: list[OutlineRow] = []
@@ -212,7 +215,7 @@ def from_markdown(text: str, roles: list[str] | None = None,
     if rows:
         rows[-1].gist = " ".join(pending)[:300]
     if not rows:
-        raise Unusable("the Markdown holds no headings")
+        raise OutlineError("The outline holds no headings. Every slide is one heading.")
     # A heading without a gist is a divider, unless the Markdown named its role itself.
     for r, tag in zip(rows, forced):
         if not tag and not r.gist:
@@ -221,10 +224,23 @@ def from_markdown(text: str, roles: list[str] | None = None,
         # The level one heading is the deck title, so it becomes the cover slide of its own.
         rows.insert(0, OutlineRow(role="cover", title=title, gist=subtitle))
         forced.insert(0, "cover")
+    # A heading that is only a role tag has no title, and a slide without a title cannot be built.
+    empty = [i for i, r in enumerate(rows) if not r.title.strip()]
+    if empty:
+        raise OutlineError(f"Heading {empty[0] + 1} of the outline has no title, only a role tag. "
+                           "Every heading needs a title of its own.")
+    lo, hi = bounds or SLIDE_BOUNDS
+    if not lo <= len(rows) <= hi:
+        raise OutlineError(f"The outline has {len(rows)} slides, a deck holds {lo} to {hi}. "
+                           "Nothing of the outline is dropped, so split the file or shorten it.")
+    # The tag travels with the row's id, so a row the check moves keeps the role its author wrote.
+    rows = with_ids(rows)
+    tags = {r.id: tag for r, tag in zip(rows, forced)}
     outline = Outline(title=title or rows[0].title, subtitle=subtitle, rows=rows)
     kept = check(outline, roles if roles is not None else list(SELECTABLE_ROLES), bounds)
     # The Markdown is the author's own plan, so a role it names stays whatever the roles allow.
-    for row, tag in zip(kept.rows[1:-1], forced[1:-1]):
+    for row in kept.rows[1:-1]:
+        tag = tags.get(row.id, "")
         if tag in SELECTABLE_ROLES and (roles is None or tag in roles):
             row.role = tag
     return kept
