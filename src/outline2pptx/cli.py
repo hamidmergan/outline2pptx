@@ -7,7 +7,8 @@ from . import __version__, api, config
 from .errors import DeckError
 
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
-UI_HINT = 'The web page needs extra packages: pip install "outline2pptx[ui]"'
+UI_HINT = ('The web page needs extra packages: pip install '
+           '"outline2pptx[ui] @ git+https://github.com/hamidmergan/outline2pptx.git"')
 NO_LOGIN = "Warning: the page has no login. Anyone who can reach this port can use it."
 
 

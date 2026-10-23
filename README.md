@@ -25,22 +25,24 @@ If you run your own model, your topic and your slide text stay on your own netwo
 
 ## Installation
 
-```bash
-pip install outline2pptx
-```
-
-Alternatively, you can install it from the source:
+outline2pptx is installed from GitHub:
 
 ```bash
-git clone https://github.com/hamidmergan/outline2pptx.git
-cd outline2pptx
-pip install .
+pip install git+https://github.com/hamidmergan/outline2pptx.git
 ```
 
 For the web page, install the extra:
 
 ```bash
-pip install "outline2pptx[ui]"
+pip install "outline2pptx[ui] @ git+https://github.com/hamidmergan/outline2pptx.git"
+```
+
+Alternatively, you can install it from a local copy (`pip install ".[ui]"` for the web page):
+
+```bash
+git clone https://github.com/hamidmergan/outline2pptx.git
+cd outline2pptx
+pip install .
 ```
 
 ## Usage
