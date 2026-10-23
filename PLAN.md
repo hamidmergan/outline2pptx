@@ -24,7 +24,7 @@ slide is rendered with LibreOffice.
 - [x] 4 API and CLI
 - [x] 5 Tests with fake server
 - [x] 6 README, CHANGELOG, smoke test
-- [ ] 7 English sweep, acceptance greps
+- [x] 7 English sweep, acceptance greps
 - [ ] 8 Web UI and Docker
 
 ## Open
