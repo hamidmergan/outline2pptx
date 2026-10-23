@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from .schemas import Body, Column, Slide
+from . import template
 from .template import EMU_PER_PT, Analysis, Field
 from .fonts import load_font
 
@@ -107,8 +108,9 @@ def _rest_shape(s: Slide, a: Analysis) -> tuple[str, int | None]:
     if s.role not in _IMAGE_ROLES:
         return s.role, s.layout
     role = "two_columns" if s.columns else "text"
-    candidates = a.roles.get(role) or []
-    return role, (candidates[0] if candidates else None)
+    # The builder's own fallback chain, so a template without a layout for the role still
+    # leaves the part with one instead of with None.
+    return role, template.layout_for(a, role, {}).index
 
 
 def _cut_off(s: Slide, a: Analysis) -> Slide | None:

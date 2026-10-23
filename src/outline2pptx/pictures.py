@@ -10,6 +10,7 @@ from .deck import image_key
 from .config import Settings
 from .errors import ModelError
 from .schemas import Slide
+from . import template
 from .template import Analysis, Field
 
 log = logging.getLogger(__name__)
@@ -33,8 +34,13 @@ def _fields(a: Analysis, slide: Slide, layout_index: int) -> list[tuple[str, Fie
 def plan(a: Analysis, slides: list[Slide], layouts: dict[str, int]) -> list[tuple[str, Field, str]]:
     """Every picture the deck asks for, over all its slides."""
     out: list[tuple[str, Field, str]] = []
+    counter: dict[str, int] = {}
     for s in slides:
-        out.extend(_fields(a, s, layouts[s.id]))
+        # A slide the caller has no layout for rotates like it does in the build, never a KeyError.
+        index = layouts.get(s.id)
+        if index is None:
+            index = template.layout_for(a, s.role, counter).index
+        out.extend(_fields(a, s, index))
     return out
 
 

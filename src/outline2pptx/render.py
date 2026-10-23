@@ -358,7 +358,7 @@ def pptx_to_images(pptx_path: Path, output_dir: Path, dpi: int = 100) -> list[Pa
     # Collect generated images (pdftoppm names them slide-1.png, slide-2.png, ...)
     images = sorted(output_dir.glob("slide-*.png"))
     if not images:
-        raise RuntimeError("Keine Slide-Bilder created")
+        raise PreviewError("LibreOffice wrote a PDF but no slide image came out of it.")
 
     return images
 

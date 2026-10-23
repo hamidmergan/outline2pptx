@@ -196,8 +196,10 @@ def build(key: str, meta: dict) -> None:
     for shape in master.placeholders:
         box = by_type.get(shape.placeholder_format.type)
         if box is None:
-            shape.left = Emu(int(shape.left * WIDE / 9144000))
-            shape.width = Emu(int(shape.width * WIDE / 9144000))
+            # The whole box, never only left and width: a placeholder that inherits half its
+            # geometry comes out at the top edge of the slide with no height at all.
+            _place(shape, (int(shape.left * WIDE / 9144000), shape.top,
+                           int(shape.width * WIDE / 9144000), shape.height))
             continue
         _place(shape, box)
     for layout in list(master.slide_layouts):

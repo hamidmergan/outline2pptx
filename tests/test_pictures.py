@@ -7,7 +7,7 @@ from pptx import Presentation
 from outline2pptx import config, image, library, pictures, preview, render
 from outline2pptx.deck import build_deck
 from outline2pptx.errors import PreviewError
-from outline2pptx.schemas import Body, ImageSpec, Slide
+from outline2pptx.schemas import Body, Column, ImageSpec, Slide
 
 HAS_LIBREOFFICE = render.available()
 
@@ -73,12 +73,23 @@ def _field_size(analysis):
 def test_a_refused_size_is_retried_as_a_square(clean, server):
     _, analysis, _ = clean
     slides, layouts = picture_slides(analysis)
+    server.refuse_images = 1
+    drawn = pictures.draw(analysis, slides, layouts, settings_for(server), "Flat.", "2563EB")
+    assert [r["body"]["size"] for r in server.requests] == [
+        image.image_size(*_field_size(analysis)), "1024x1024"]
+    # The square was answered, so the drawn picture is the model's, not a placeholder.
+    assert drawn["s1_0"] == server.image_bytes
+    assert drawn["s1_0"] != image.placeholder(*_field_size(analysis), "2563EB")
+
+
+def test_both_sizes_refused_leaves_a_placeholder(clean, server):
+    _, analysis, _ = clean
+    slides, layouts = picture_slides(analysis)
     server.image_status = 400
     drawn = pictures.draw(analysis, slides, layouts, settings_for(server), "Flat.", "2563EB")
-    # both sizes were refused, so a placeholder stepped in
     assert len(server.requests) == 2
-    assert server.requests[1]["body"]["size"] == "1024x1024"
-    assert drawn["s1_0"].startswith(b"\x89PNG")
+    assert drawn["s1_0"] != server.image_bytes
+    assert drawn["s1_0"] == image.placeholder(*_field_size(analysis), "2563EB")
 
 
 def test_a_failing_image_model_falls_back_to_a_placeholder(clean, server):
@@ -131,3 +142,73 @@ def test_available_checks_the_three_tools(monkeypatch):
     assert render.available()
     monkeypatch.setattr(shutil, "which", lambda name: None if name == "pdftoppm" else "/usr/bin/x")
     assert not render.available()
+
+
+def _picture_only_analysis():
+    """A template whose only body layout carries a picture, so it has no plain text role."""
+    from outline2pptx.template import Analysis, Field, Layout
+
+    def head(idx=0):
+        return Field(idx=idx, kind="heading", ph_type="TITLE", left=640080, top=457200,
+                     width=10911840, height=1000000, size_pt=32.0)
+
+    cover = Layout(index=0, name="Cover", role="cover", fields=[head()])
+    picture = Layout(index=1, name="Picture", role="text_with_image", fields=[
+        head(),
+        Field(idx=1, kind="body", ph_type="OBJECT", left=640080, top=1700000, width=5303520,
+              height=4300000, size_pt=18.0, is_object=True),
+        Field(idx=2, kind="picture", ph_type="PICTURE", left=6248400, top=1700000,
+              width=5303520, height=4300000)])
+    return Analysis(width=12192000, height=6858000, typeface="Poppins",
+                    layouts=[cover, picture],
+                    roles={"cover": [0], "closing": [0], "text_with_image": [1]})
+
+
+def test_a_split_picture_slide_still_gets_its_pictures():
+    from outline2pptx import split
+
+    analysis = _picture_only_analysis()
+    long = [f"Point number {n}, a whole sentence of its own so that the column cannot hold it"
+            for n in range(1, 9)]
+    s = Slide(id="s1", role="text_with_image", layout=1, title="A picture slide",
+              columns=[Column(heading="Left", items=list(long))],
+              images=[ImageSpec(prompt="a quiet library")])
+    ordered = split.split_overflow([s], analysis)
+    assert len(ordered) == 2
+    # The rest has no text layout to fall back to, but it still carries one.
+    assert all(part.layout is not None for part in ordered)
+    layouts = {part.id: part.layout for part in ordered if part.layout is not None}
+    drawn = pictures.draw(analysis, ordered, layouts, settings_for(), "Flat.", "2563EB")
+    assert "s1_0" in drawn
+
+
+def test_a_slide_without_a_stored_layout_rotates_instead_of_failing(clean):
+    _, analysis, _ = clean
+    slides, _ = picture_slides(analysis)
+    slides[0].layout = None
+    drawn = pictures.draw(analysis, slides, {}, settings_for(), "Flat.", "2563EB")
+    assert set(drawn) == {"s1_0"}
+
+
+def test_no_slide_image_is_a_preview_error_not_a_raw_runtime_error(clean, tmp_path, monkeypatch):
+    """LibreOffice wrote its PDF but pdftoppm produced nothing, a full disk for instance."""
+    data, analysis, _ = clean
+    deck = build_deck(data, analysis, [Slide(id="s1", role="cover", title="A")], {}, "A", False)
+    source = tmp_path / "deck.pptx"
+    source.write_bytes(deck)
+    target = tmp_path / "img"
+    target.mkdir()
+
+    class Done:
+        returncode = 0
+        stdout = "Pages: 1\n"
+        stderr = ""
+
+    def fake_run(cmd, **kwargs):
+        if "pdftoppm" not in cmd[0] and "pdfinfo" not in cmd[0]:
+            (target / "_render_deck.pdf").write_bytes(b"%PDF-1.4\n")
+        return Done()
+
+    monkeypatch.setattr(render.subprocess, "run", fake_run)
+    with pytest.raises(PreviewError, match="no slide image"):
+        render.pptx_to_images(source, target)

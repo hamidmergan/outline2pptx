@@ -27,6 +27,8 @@ class FakeServer:
         self.requests = []
         self.fail = False
         self.image_status = 200
+        # How many image calls are refused before the first one is answered.
+        self.refuse_images = 0
         self.reject_json_mode = False
         self.outline = {"title": "Deck", "subtitle": "", "slides": []}
         self.slides = {"slides": []}
@@ -46,6 +48,9 @@ class FakeServer:
                 if outer.fail:
                     return self.reply(500, b'{"error": "boom"}')
                 if self.path.endswith("/images/generations"):
+                    if outer.refuse_images > 0:
+                        outer.refuse_images -= 1
+                        return self.reply(400, b'{"error": {"message": "size"}}')
                     if outer.image_status != 200:
                         return self.reply(outer.image_status, b'{"error": {"message": "size"}}')
                     payload = {"created": 0, "data": [
