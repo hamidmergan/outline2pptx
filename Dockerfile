@@ -11,6 +11,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY . .
+# The templates ask for Poppins. Without the bundled faces LibreOffice substitutes another
+# font, and the preview then shows something the measurement never planned for.
+RUN cp src/outline2pptx/fonts/poppins/*.ttf /usr/local/share/fonts/ \
+    && fc-cache -f
 RUN pip install --no-cache-dir ".[ui]" \
     && useradd --create-home --uid 1000 app \
     && mkdir -p /data && chown app:app /data

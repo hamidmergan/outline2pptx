@@ -85,6 +85,9 @@ PLAN = {
 DROP = ("Blank", "Vertical Title and Text")
 
 _A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+# The bullet elements of a first level paragraph, kept when a placeholder is resized.
+BULLET_TAGS = ("buClrTx", "buClr", "buSzTx", "buSzPct", "buSzPts", "buFontTx", "buFont",
+               "buNone", "buAutoNum", "buChar", "buBlip")
 
 TEMPLATES = {
     "clean": {
@@ -108,15 +111,39 @@ TEMPLATES = {
 }
 
 
-def _set_size(shape, hundredths: int) -> None:
-    """One explicit first level size on the placeholder, the size the analyser reads."""
-    body = shape.text_frame._txBody
-    for old in body.findall(f"{_A}lstStyle"):
-        body.remove(old)
+def _set_size(shape, hundredths: int, bullets: bool) -> None:
+    """One explicit first level size on the placeholder, the size the analyser reads.
+
+    ``bullets`` says whether this placeholder holds a list. A title, a subtitle and a
+    subheading hold one line, so they switch the master's bullet off: the stock placeholders
+    carry that rule as ``buNone``, and a placeholder that drops it shows a bullet dot in front
+    of the cover's own line.
+    """
+    from copy import deepcopy
+
     from lxml import etree
 
+    body = shape.text_frame._txBody
+    old_level = None
+    for old in body.findall(f"{_A}lstStyle"):
+        if old_level is None:
+            old_level = old.find(f"{_A}lvl1pPr")
+        body.remove(old)
     style = etree.SubElement(body, f"{_A}lstStyle")
     level = etree.SubElement(style, f"{_A}lvl1pPr")
+    carried = [kind for kind in (old_level if old_level is not None else [])
+               if etree.QName(kind).localname in BULLET_TAGS]
+    if bullets:
+        if old_level is not None:
+            for name in ("marL", "indent"):
+                if old_level.get(name) is not None:
+                    level.set(name, old_level.get(name))
+        for kind in carried:
+            level.append(deepcopy(kind))
+    else:
+        level.set("marL", "0")
+        level.set("indent", "0")
+        etree.SubElement(level, f"{_A}buNone")
     etree.SubElement(level, f"{_A}defRPr", sz=str(hundredths))
     # The list style belongs right after the body properties, before the paragraphs.
     body.remove(style)
@@ -148,7 +175,7 @@ def _lay_out(layout, plan: dict) -> None:
         left, top, width, height, size = plan[idx]
         shape.left, shape.top, shape.width, shape.height = Emu(left), Emu(top), Emu(width), Emu(height)
         if size is not None:
-            _set_size(shape, size)
+            _set_size(shape, size, bullets=size == BODY_PT)
 
 
 _P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"

@@ -366,3 +366,68 @@ def test_notes_are_split_at_a_sentence_end():
     first, second = split.split_notes("One sentence here. Another sentence here.", 0.5)
     assert first == "One sentence here."
     assert second == "Another sentence here."
+
+
+# Bullets
+
+
+_A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+_P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+_MARKERS = ("buChar", "buAutoNum", "buBlip")
+
+
+def _bullet_of(level):
+    """'none', a marker name, or None when this level says nothing about bullets."""
+    if level is None:
+        return None
+    if level.find(f"{_A}buNone") is not None:
+        return "none"
+    for name in _MARKERS:
+        if level.find(f"{_A}{name}") is not None:
+            return name
+    return None
+
+
+def shows_a_bullet(shape) -> bool:
+    """What the first paragraph of this placeholder really shows: its own rule, the layout's, the master's."""
+    own = _bullet_of(shape.text_frame.paragraphs[0]._p.find(f"{_A}pPr"))
+    if own is None:
+        idx = shape.placeholder_format.idx
+        layout_ph = next((p for p in shape.part.slide_layout.placeholders
+                          if p.placeholder_format.idx == idx), None)
+        if layout_ph is not None:
+            own = _bullet_of(layout_ph._element.find(f".//{_A}lstStyle/{_A}lvl1pPr"))
+    if own is None:
+        master = shape.part.slide_layout.slide_master._element
+        own = _bullet_of(master.find(f".//{_P}bodyStyle/{_A}lvl1pPr"))
+    return own not in (None, "none")
+
+
+@pytest.mark.parametrize("name", TEMPLATES)
+def test_one_line_placeholders_switch_the_bullet_off(name):
+    data, analysis, _ = library.load(name)
+    prs = reopen(data)
+    for layout in analysis.layouts:
+        pptx_layout = prs.slide_masters[0].slide_layouts[layout.index]
+        for one_liner in layout.of_kind("heading") + layout.of_kind("subheading"):
+            ph = next(p for p in pptx_layout.placeholders
+                      if p.placeholder_format.idx == one_liner.idx)
+            level = ph._element.find(f".//{_A}lstStyle/{_A}lvl1pPr")
+            assert _bullet_of(level) == "none", (
+                f"{name}: {layout.name} placeholder {one_liner.idx} keeps the master's bullet")
+
+
+@pytest.mark.parametrize("name", TEMPLATES)
+def test_the_cover_line_has_no_bullet_but_a_list_does(name):
+    loaded = library.load(name)
+    slides = [Slide(id="s1", role="cover", title="A Deck", subtitle="About things"),
+              Slide(id="s2", role="text", title="Points", body=BODIES["bullets"]),
+              Slide(id="s3", role="closing", title="One thought", subtitle="Take it home")]
+    prs = reopen(deck_of(slides, loaded))
+    cover = next(sh for sh in prs.slides[0].shapes if sh.text_frame.text == "About things")
+    closing = next(sh for sh in prs.slides[2].shapes if sh.text_frame.text == "Take it home")
+    points = next(sh for sh in prs.slides[1].shapes
+                  if "Point number 1 on this slide" in sh.text_frame.text)
+    assert not shows_a_bullet(cover)
+    assert not shows_a_bullet(closing)
+    assert shows_a_bullet(points)
