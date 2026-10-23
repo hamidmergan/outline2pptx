@@ -44,8 +44,8 @@ def base_pt(size_pt: float) -> float:
     return min(MAX_BASE_PT, size_pt or DEFAULT_PT)
 
 
-def _count(laenge_pt: float, min_pt: float, abstand_pt: float) -> int:
-    return max(1, int((laenge_pt + abstand_pt) // (min_pt + abstand_pt)))
+def _count(length_pt: float, min_pt: float, gap_pt: float) -> int:
+    return max(1, int((length_pt + gap_pt) // (min_pt + gap_pt)))
 
 
 def card_grid(width: int, height: int, size_pt: float) -> tuple[int, int]:
@@ -59,8 +59,8 @@ def card_space(width: int, height: int, size_pt: float) -> dict:
     """The most cards the field takes, and the words a title and a text may have in the fullest grid."""
     columns, rows = card_grid(width, height, size_pt)
     g = base_pt(size_pt)
-    karte_pt = (width / EMU_PER_PT - GAP * g * (columns - 1)) / columns
-    inner = karte_pt - 2 * 1.2 * g
+    card_pt = (width / EMU_PER_PT - GAP * g * (columns - 1)) / columns
+    inner = card_pt - 2 * 1.2 * g
     title = inner / (TITLE_RATIO * g * 0.5)
     text = inner / (TEXT_RATIO * g * 0.5) * TEXT_LINES
     return {"max": min(MAX_CARDS, columns * rows),
@@ -68,19 +68,19 @@ def card_space(width: int, height: int, size_pt: float) -> dict:
             "text_words": max(4, int(text / _CHARS_PER_WORD))}
 
 
-def distribution(n: int, spalten_max: int) -> list[int]:
+def distribution(n: int, columns_max: int) -> list[int]:
     """Cards per row: as few rows as the width allows, rows as even as possible, the fuller ones first."""
     if n <= 0:
         return []
-    rows = math.ceil(n / max(1, spalten_max))
+    rows = math.ceil(n / max(1, columns_max))
     breit = math.ceil(n / rows)
-    aus, rest = [], n
+    out, rest = [], n
     for r in range(rows):
         k = min(breit, rest - (rows - r - 1))
         k = max(1, min(k, math.ceil(rest / (rows - r))))
-        aus.append(k)
+        out.append(k)
         rest -= k
-    return aus
+    return out
 
 
 def bar_space(height: int, size_pt: float) -> int:
@@ -88,8 +88,8 @@ def bar_space(height: int, size_pt: float) -> int:
     return min(MAX_BARS, _count(height / EMU_PER_PT, BAR_MIN_HEIGHT * g, 0.0))
 
 
-def _words(breite_pt: float, size: float, lines: int) -> int:
-    return int(breite_pt / (size * 0.5) * lines / _CHARS_PER_WORD)
+def _words(width_pt: float, size: float, lines: int) -> int:
+    return int(width_pt / (size * 0.5) * lines / _CHARS_PER_WORD)
 
 
 def step_space(width: int, size_pt: float) -> dict:

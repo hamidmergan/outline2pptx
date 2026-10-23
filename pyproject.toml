@@ -52,7 +52,7 @@ outline2pptx = "outline2pptx.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-outline2pptx = ["py.typed", "templates/*", "icons/*.png", "fonts/poppins/*", "web/static/*"]
+outline2pptx = ["py.typed", "templates/*", "icons/*", "fonts/poppins/*", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

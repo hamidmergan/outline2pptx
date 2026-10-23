@@ -19,7 +19,7 @@ slide is rendered with LibreOffice.
 
 - [x] 0 Scaffold
 - [x] 1 Data model and outline
-- [ ] 2 Building the slides
+- [x] 2 Building the slides
 - [ ] 3 Images and preview
 - [ ] 4 API and CLI
 - [ ] 5 Tests with fake server
