@@ -1,12 +1,14 @@
 import io
+import json
 from io import BytesIO
 
 import pytest
 from pptx import Presentation
 
-from conftest import outline_answer, slides_answer
+from conftest import PDF_FOOTER, outline_answer, slides_answer
 from outline2pptx import cli
 from test_api import OUTLINE_MD, answer_for_batch
+from test_material_outline import echo_slides, material_lines
 
 
 def flags(server):
@@ -103,14 +105,16 @@ def test_notes_reach_the_file(server, outline_file, tmp_path):
     assert any(s.has_notes_slide for s in prs.slides)
 
 
-def test_without_an_outline_or_a_topic_it_asks_for_one(capsys):
+def test_without_an_outline_a_topic_or_material_it_asks_for_one(capsys):
     assert cli.main([]) == 2
-    assert "outline file or --topic" in capsys.readouterr().err
+    assert "Give an outline file, --topic or --material." in capsys.readouterr().err
 
 
-def test_an_outline_and_a_topic_together_are_refused(capsys, outline_file):
+def test_two_of_the_three_inputs_together_are_refused(capsys, outline_file, handout_pdf):
     assert cli.main([str(outline_file), "--topic", "Bees"]) == 2
-    assert "not both" in capsys.readouterr().err
+    assert "not an outline file and --topic" in capsys.readouterr().err
+    assert cli.main(["--topic", "Bees", "--material", str(handout_pdf)]) == 2
+    assert "not --topic and --material" in capsys.readouterr().err
 
 
 def test_a_missing_outline_file_is_reported(capsys, tmp_path):
@@ -199,3 +203,82 @@ def test_serve_without_the_extra_packages_says_what_to_install(capsys, monkeypat
     monkeypatch.setattr(builtins, "__import__", no_uvicorn)
     assert cli.main(["serve"]) == 2
     assert "outline2pptx[ui]" in capsys.readouterr().err
+
+
+# --- Documents on the command line -------------------------------------------------------
+
+def test_material_plans_the_outline_over_the_document_and_builds_the_deck(server, handout_pdf,
+                                                                         tmp_path, capsys):
+    server.outline = material_lines
+    server.slides = echo_slides
+    out = tmp_path / "deck.pptx"
+    assert cli.main(["--material", str(handout_pdf), "-o", str(out), *flags(server)]) == 0
+    assert out.exists()
+    err = capsys.readouterr().err
+    # The size of the material is on screen, so the budget is no surprise.
+    assert "Material: 1 file(s), 6 page(s)," in err
+    assert "characters." in err
+    assert server.kinds()[0] == "outline"
+    prs = Presentation(BytesIO(out.read_bytes()))
+    texts = [shape.text_frame.text for slide in prs.slides for shape in slide.shapes
+             if shape.has_text_frame]
+    assert any("Waermequelle" in text for text in texts)
+    assert all(PDF_FOOTER not in text for text in texts)
+
+
+def test_several_documents_can_be_given_at_once(server, handout_pdf, handout_docx, tmp_path):
+    server.outline = material_lines
+    out = tmp_path / "deck.pptx"
+    assert cli.main(["--material", str(handout_pdf), str(handout_docx), "-o", str(out),
+                     "--outline-only", *flags(server)]) == 0
+    system = server.requests[0]["body"]["messages"][0]["content"]
+    assert "comes from 2 files: leitfaden.pdf, leitfaden.docx" in system
+
+
+def test_the_output_defaults_to_the_name_of_the_first_document(server, handout_pdf, tmp_path,
+                                                              monkeypatch):
+    server.outline = material_lines
+    server.slides = echo_slides
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["--material", str(handout_pdf), *flags(server)]) == 0
+    assert (tmp_path / "leitfaden.pptx").exists()
+
+
+def test_the_window_flag_decides_when_the_material_is_mapped_first(server, tmp_path, capsys):
+    path = tmp_path / "lang.txt"
+    path.write_text("\n\n".join(f"Abschnitt {n}: Die Jahresarbeitszahl steigt. "
+                                 + "Fuellsatz. " * 200 for n in range(1, 40)))
+    server.topics = lambda body: json.dumps({"topics": [
+        {"title": "Quelle", "gist": "Was das Material sagt."},
+        {"title": "Zahl", "gist": "Welche Zahlen es nennt."},
+        {"title": "Heizstab", "gist": "Wann er anspringt."}]})
+    server.outline = material_lines
+    code = cli.main(["--material", str(path), "--context-window", "32768", "--outline-only",
+                     *flags(server)])
+    assert code == 0
+    assert "planned through the topics of the material" in capsys.readouterr().err
+    assert "topics" in server.kinds()
+
+
+def test_a_document_the_deck_cannot_use_is_refused_by_name(server, tmp_path, capsys):
+    path = tmp_path / "sound.mp3"
+    path.write_bytes(b"not a document")
+    assert cli.main(["--material", str(path), *flags(server)]) == 2
+    err = capsys.readouterr().err
+    assert ".mp3" in err and ".pdf" in err
+    assert server.requests == []
+
+
+def test_material_over_the_limit_names_the_flag(server, tmp_path, capsys):
+    path = tmp_path / "lang.txt"
+    path.write_text("Ein Satz ueber die Waermepumpe. " * 400)
+    assert cli.main(["--material", str(path), "--max-material-chars", "1000",
+                     *flags(server)]) == 2
+    assert "--max-material-chars" in capsys.readouterr().err
+
+
+def test_slides_may_be_asked_for_over_material(server, handout_pdf, capsys):
+    server.outline = material_lines
+    assert cli.main(["--material", str(handout_pdf), "--slides", "14", "--outline-only",
+                     *flags(server)]) == 0
+    assert "Plan around 14 slides" in server.requests[0]["body"]["messages"][0]["content"]

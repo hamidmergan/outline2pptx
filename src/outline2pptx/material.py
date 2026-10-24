@@ -87,14 +87,14 @@ def read(paths: Paths, *, max_files: int = config.MAX_MATERIAL_FILES,
         raise NoReadableText("No document was given.")
     if len(names) > max_files:
         raise LimitError(f"{len(names)} files were given, at most {max_files} go into one deck "
-                         "(max_files or OUTLINE2PPTX_MAX_MATERIAL_FILES).")
+                         "(max_files, --max-material-files or OUTLINE2PPTX_MAX_MATERIAL_FILES).")
     sources = [read_file(name, max_pages=max_pages, max_file_mb=max_file_mb) for name in names]
     material = Material(sources=sources)
     if material.chars > max_chars:
         raise LimitError(
             f"The material has {material.chars} characters, at most {max_chars} are allowed "
-            "(max_chars or OUTLINE2PPTX_MAX_MATERIAL_CHARS). Nothing is cut off behind your "
-            "back, so raise the limit or give fewer documents.")
+            "(max_chars, --max-material-chars or OUTLINE2PPTX_MAX_MATERIAL_CHARS). Nothing is "
+            "cut off behind your back, so raise the limit or give fewer documents.")
     log.info("Material: %d file(s), %d page(s), %d characters",
              len(sources), material.pages, material.chars)
     return material

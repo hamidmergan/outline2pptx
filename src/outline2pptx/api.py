@@ -81,6 +81,18 @@ def outline_from_topic(topic: str, *, slides: int | None = None, client=None, **
     raise ModelError(last or "The model returned no usable outline.")
 
 
+def material_for(paths, **options) -> mt.Material:
+    """The documents read with the limits of these settings, before anything is planned.
+
+    For a caller that wants to show what was read, its size above all, before the first
+    model call is paid for. The result goes straight into ``outline_from_material``.
+    """
+    settings = resolve(need_model=False, **options)
+    return mt.coerce(paths, max_files=settings.max_material_files,
+                     max_chars=settings.max_material_chars,
+                     max_pages=settings.max_source_pages, max_file_mb=settings.max_file_mb)
+
+
 def outline_from_material(material, *, slides: int | None = None, client=None,
                           **options) -> str:
     """An outline over documents, as Markdown, planned by the model.
@@ -90,9 +102,7 @@ def outline_from_material(material, *, slides: int | None = None, client=None,
     than the model window is planned through its topics instead of being cut off.
     """
     settings = resolve(slides=slides, **options)
-    found = mt.coerce(material, max_files=settings.max_material_files,
-                      max_chars=settings.max_material_chars,
-                      max_pages=settings.max_source_pages, max_file_mb=settings.max_file_mb)
+    found = material_for(material, **options)
     _, analysis, meta = library.load(settings.template, settings.template_dir)
     params = _params(settings, meta)
     roles = template.selectable_roles(analysis)

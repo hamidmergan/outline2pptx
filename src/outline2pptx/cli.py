@@ -7,6 +7,7 @@ from . import __version__, api, config
 from .errors import DeckError
 
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
+FORMATS = "Documents: .pdf, .docx, .pptx, .md or .txt"
 UI_HINT = ('The web page needs extra packages: pip install '
            '"outline2pptx[ui] @ git+https://github.com/hamidmergan/outline2pptx.git"')
 NO_LOGIN = "Warning: the page has no login. Anyone who can reach this port can use it."
@@ -27,12 +28,24 @@ def _model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--style-text", help="The look every illustration shares. Default: the template's style")
     p.add_argument("--notice", help="A short note in the bottom right corner of every slide")
     p.add_argument("--notes", action="store_true", help="Write speaker notes")
+    p.add_argument("--context-window", type=int,
+                   help="Context window of the text model in tokens. Material that does not fit "
+                        f"is planned through its topics (default {config.DEFAULT_WINDOW_TOKENS})")
+    p.add_argument("--max-material-chars", type=int,
+                   help=f"Longest accepted material in characters (default {config.MAX_MATERIAL_CHARS})")
+    p.add_argument("--max-material-files", type=int,
+                   help=f"Most documents in one deck (default {config.MAX_MATERIAL_FILES})")
+    p.add_argument("--max-pages", dest="max_source_pages", type=int,
+                   help=f"Most pages or slides of one document (default {config.MAX_SOURCE_PAGES})")
+    p.add_argument("--max-file-mb", type=float,
+                   help=f"Largest accepted document in MB (default {config.MAX_FILE_MB:g})")
     p.add_argument("--timeout", type=float, help="Seconds per request")
 
 
 MODEL_KEYS = ("base_url", "model", "api_key", "image_base_url", "image_model", "image_api_key",
               "language", "template", "template_dir", "presenter", "instructions", "style_text",
-              "notice", "timeout")
+              "notice", "context_window", "max_material_chars", "max_material_files",
+              "max_source_pages", "max_file_mb", "timeout")
 
 
 def _model_options(args: argparse.Namespace) -> dict:
@@ -73,16 +86,20 @@ def _serve(argv: List[str]) -> int:
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="outline2pptx",
-        description="Build a PowerPoint deck from a Markdown outline or from a topic. "
-        "The model writes the slides, python-pptx builds the file.",
-        epilog="Example: outline2pptx outline.md -o deck.pptx --template clean. "
+        description="Build a PowerPoint deck from a Markdown outline, from a topic or from "
+        "your own documents. The model writes the slides, python-pptx builds the file.",
+        epilog="Example: outline2pptx outline.md -o deck.pptx --template clean, or "
+        "outline2pptx --material handout.pdf -o deck.pptx. "
         "Run 'outline2pptx serve' for the web page.",
     )
     p.add_argument("outline", nargs="?", help="Markdown file with the outline, or - for standard input")
     p.add_argument("-o", "--output", help="Where the .pptx goes. Default: next to the outline")
     p.add_argument("--topic", help="Plan the outline from a topic instead of reading a file")
-    p.add_argument("--slides", type=int, help=f"How many slides to plan for a topic "
-                   f"({config.MIN_SLIDES} to {config.MAX_SLIDES}). Default: the model decides")
+    p.add_argument("--material", nargs="+", metavar="FILE",
+                   help="Plan the outline over your own documents. " + FORMATS)
+    p.add_argument("--slides", type=int, help=f"How many slides to plan for a topic or for "
+                   f"material ({config.MIN_SLIDES} to {config.MAX_SLIDES}). Default: the amount "
+                   "of material decides, a topic is left to the model")
     p.add_argument("--outline-only", action="store_true",
                    help="Print the planned outline as Markdown and build nothing")
     p.add_argument("--images", action="store_true", help="Draw the illustrations with the image model")
@@ -112,7 +129,25 @@ def _default_output(args: argparse.Namespace) -> str:
         return args.output
     if args.outline and args.outline != "-":
         return str(Path(args.outline).with_suffix(".pptx"))
+    if args.material:
+        return str(Path(args.material[0]).with_suffix(".pptx").name)
     return "deck.pptx"
+
+
+def _read_material(args: argparse.Namespace, options: dict):
+    """The documents, with a word on their size before the first call is paid for."""
+    from . import budget as bd
+
+    settings = config.resolve(need_model=False, **options)
+    found = api.material_for(args.material, **options)
+    note = (f"Material: {len(found.names)} file(s), {found.pages} page(s), "
+            f"{found.chars} characters.")
+    limit = bd.window_chars(settings.context_window)
+    if found.chars > limit:
+        note += (f" That is more than one call may carry ({limit} characters), so the deck is "
+                 "planned through the topics of the material.")
+    _err(note)
+    return found
 
 
 def _list_templates(args: argparse.Namespace) -> int:
@@ -139,19 +174,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         if args.list_templates:
             return _list_templates(args)
-        if not args.outline and not args.topic:
-            _err("Give an outline file or --topic. See outline2pptx --help.")
+        given = [name for name, value in (("an outline file", args.outline),
+                                          ("--topic", args.topic),
+                                          ("--material", args.material)) if value]
+        if not given:
+            _err("Give an outline file, --topic or --material. See outline2pptx --help.")
             return 2
-        if args.outline and args.topic:
-            _err("Give either an outline file or --topic, not both.")
+        if len(given) > 1:
+            _err(f"Give only one of them, not {' and '.join(given)}.")
             return 2
         if args.outline and args.slides is not None:
-            _err("--slides plans an outline from --topic. An outline file sets its own slides.")
+            _err("--slides plans an outline from --topic or from --material. An outline file "
+                 "sets its own slides.")
             return 2
 
         options = _model_options(args)
         if args.topic:
             outline_md = api.outline_from_topic(args.topic, slides=args.slides, **options)
+        elif args.material:
+            outline_md = api.outline_from_material(_read_material(args, options),
+                                                   slides=args.slides, **options)
         else:
             outline_md = _read_outline(args.outline)
         if args.outline_only:

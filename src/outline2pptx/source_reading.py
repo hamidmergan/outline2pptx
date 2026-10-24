@@ -144,13 +144,13 @@ def read_file(path: str | Path, name: str | None = None, *,
     size_mb = p.stat().st_size / (1024 * 1024)
     if size_mb > max_file_mb:
         raise LimitError(f"{name}: the file has {size_mb:.1f} MB, at most {max_file_mb:g} MB are "
-                         "allowed (max_file_mb or OUTLINE2PPTX_MAX_FILE_MB).")
+                         "allowed (max_file_mb, --max-file-mb or OUTLINE2PPTX_MAX_FILE_MB).")
     if p.stat().st_size == 0:
         raise UnsupportedFileError(f"{name}: the file is empty")
     pages = count_pages(ext, path)
     if pages is not None and pages > max_pages:
         raise LimitError(f"{name}: the document has {pages} pages, at most {max_pages} are allowed "
-                         "(max_pages or OUTLINE2PPTX_MAX_SOURCE_PAGES).")
+                         "(max_pages, --max-pages or OUTLINE2PPTX_MAX_SOURCE_PAGES).")
     try:
         page_texts = _pdf_pages(path) if ext == ".pdf" else _other_pages(path, ext)
     except UnsupportedFileError:
