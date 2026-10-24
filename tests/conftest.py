@@ -19,8 +19,9 @@ def _png(width=64, height=64, color=(120, 140, 200)):
 class FakeServer:
     """An OpenAI-compatible chat and image endpoint.
 
-    ``outline`` answers the outline call, ``slides`` the content call. Both may be a dict, a raw
-    string, or a callable that gets the request body.
+    ``outline`` answers the outline call, ``slides`` the content call and ``topics`` the call
+    that maps material too long for the window. Each may be a dict, a raw string, or a
+    callable that gets the request body.
     """
 
     def __init__(self):
@@ -32,6 +33,7 @@ class FakeServer:
         self.reject_json_mode = False
         self.outline = {"title": "Deck", "subtitle": "", "slides": []}
         self.slides = {"slides": []}
+        self.topics = {"topics": [{"title": "A topic", "gist": "What the material says."}]}
         self.image_bytes = _png()
         outer = self
 
@@ -78,18 +80,27 @@ class FakeServer:
 
     def answer(self, body) -> str:
         system = body["messages"][0]["content"]
-        source = self.outline if system.startswith("You plan slide decks") else self.slides
+        if system.startswith("You map a text"):
+            source = self.topics
+        elif system.startswith("You plan slide decks"):
+            source = self.outline
+        else:
+            source = self.slides
         if callable(source):
             source = source(body)
         return source if isinstance(source, str) else json.dumps(source)
 
     def kinds(self):
-        """'outline', 'slides' or 'image' for every request so far."""
+        """'outline', 'topics', 'slides' or 'image' for every request so far."""
         out = []
         for r in self.requests:
             if r["path"].endswith("/images/generations"):
                 out.append("image")
-            elif r["body"]["messages"][0]["content"].startswith("You plan slide decks"):
+                continue
+            system = r["body"]["messages"][0]["content"]
+            if system.startswith("You map a text"):
+                out.append("topics")
+            elif system.startswith("You plan slide decks"):
                 out.append("outline")
             else:
                 out.append("slides")

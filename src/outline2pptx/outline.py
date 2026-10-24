@@ -24,6 +24,33 @@ _ID = re.compile(r"^s\d+$")
 _IMAGE_EVERY = 5
 _IMAGE_ROLES = ("text_with_image", "image_full")
 
+# One slide per this many characters of material on top of the base.
+_CHARS_PER_SLIDE = 60_000
+_BASE_SLIDES = 8
+# Cover, overview and closing draw on all files, the other slides are shared out among them.
+FRAME_SLIDES = 3
+
+
+def target_slides(chars: int) -> int:
+    """How many slides the material carries, a target the planner may deviate from."""
+    lo, hi = SLIDE_BOUNDS
+    return max(lo, min(hi, _BASE_SLIDES + chars // _CHARS_PER_SLIDE))
+
+
+def slides_per_file(weights: dict[str, int], count: int) -> dict[str, int]:
+    """How many of ``count`` slides each file gets: at least two, more for longer files, never more than twice the smallest.
+
+    Empty for a single file or when there are fewer slides than files.
+    """
+    if len(weights) < 2 or count < len(weights):
+        return {}
+    share = dict.fromkeys(weights, min(2, count // len(weights)))
+    for _ in range(count - sum(share.values())):
+        limit = 2 * min(share.values())
+        name = max((n for n in weights if share[n] < limit), key=lambda n: weights[n] / share[n])
+        share[name] += 1
+    return share
+
 
 class Unusable(ModelError):
     """The answer was not a usable outline, the caller may try once more."""
@@ -57,6 +84,60 @@ def build_messages(topic: str, params: DeckParams, roles: list[str],
         "the slide shows."
     )
     task = f"/no_think\nTOPIC:\n{topic}\n"
+    if params.instructions.strip():
+        task += f"\nINSTRUCTION OF THE SPEAKER: {params.instructions.strip()}\n"
+    return [{"role": "system", "content": system}, {"role": "user", "content": task}]
+
+
+def build_material_messages(material: str, params: DeckParams, roles: list[str], *,
+                            files: list[str] | None = None, slides: int | None = None,
+                            shares: dict[str, int] | None = None) -> list[dict]:
+    """The outline call over material: documents, not a topic the model knows by itself.
+
+    A topic is something the model fills in from what it knows. Material is something it
+    has to read: it picks what matters out of these pages, works through them to the last
+    line, and gives every file slides of its own.
+    """
+    lo, hi = SLIDE_BOUNDS
+    roles_text = "\n".join(f"- {r}: {_ROLE_TEXT[r]}" for r in roles if r in _ROLE_TEXT)
+    entry = '{"role": "...", "title": "...", "gist": "..."}'
+    system = (
+        "You plan slide decks for teaching and for talks. From the material you pick what matters "
+        "and lay it out as an outline, one entry per slide. Each title states the message of "
+        "its slide, not only its topic.\n"
+        f"Write every title and gist in {LANGUAGE_NAMES.get(params.language, 'English')}.\n"
+        + (f"Plan around {slides} slides for this amount of material. " if slides else
+           "Decide yourself how many slides the material carries: one chapter usually makes "
+           "10 to 20 slides, more material makes more. ")
+        + f"The deck has at least {lo} and at most {hi} slides in "
+        "total. The first is the cover (role cover), the last is the closing slide (role "
+        "closing). The closing slide's title is the one thought the audience takes home, "
+        "never a thank-you. For every slide in between choose one of these roles:\n"
+        f"{roles_text}\n"
+        "Vary the roles: never the same role on two neighbouring slides except text, and use every "
+        "role at least once when the material allows. Roles with an illustration suit topics a "
+        "picture can explain, not definitions.\n"
+        "Every slide rests on the material, the slides together cover what matters in the whole "
+        "of it. Work through the material to its last line before you settle the slides. Nothing "
+        "goes on a slide that the material does not say.\n"
+        + (f"The material comes from {len(files)} files: {', '.join(files)}. EVERY one of "
+           "them gets slides of its own. "
+           + ("Give each file exactly this many slides besides cover, overview and closing: "
+              + ", ".join(f"{name}: {n}" for name, n in shares.items())
+              + ". A slide that brings several documents together counts for the file it draws "
+              "on most. " if shares else
+              "Balance the slides between the files: a large file gets more than a small one, "
+              "but never more than twice the slides of the smallest. ")
+           + "Where documents touch the same subject, bring them together. The slide before the "
+           "closing one is an overview that compares the documents along the same points: what "
+           "each requires, its deadlines, who is responsible and the consequences. It has "
+           "role text and a gist that asks for a table.\n"
+           if files and len(files) > 1 else "")
+        + 'Answer with one JSON object only: {"title": "...", "subtitle": "...", "slides": '
+        f'[{entry}]}}. The gist is one sentence saying what '
+        "the slide shows, in the words of the material."
+    )
+    task = f"/no_think\nMATERIAL:\n{material}\n"
     if params.instructions.strip():
         task += f"\nINSTRUCTION OF THE SPEAKER: {params.instructions.strip()}\n"
     return [{"role": "system", "content": system}, {"role": "user", "content": task}]

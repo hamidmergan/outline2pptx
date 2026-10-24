@@ -1,4 +1,4 @@
-"""The library: an outline from a topic, and a deck from an outline."""
+"""The library: an outline from a topic or from documents, and a deck from an outline."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import colors, library, llm, outline as ol, pictures, slides as sl, split, template
+from . import (budget as bd, colors, library, llm, material as mt, outline as ol, pictures,
+               slides as sl, split, template)
 from .deck import build_deck, date_text
 from .config import Settings, resolve
 from .details import details
@@ -71,6 +72,41 @@ def outline_from_topic(topic: str, *, slides: int | None = None, client=None, **
     last = ""
     for _ in range(OUTLINE_TRIES):
         messages = ol.build_messages(topic.strip(), params, roles, settings.slides)
+        answer = llm.call_json(client, settings, messages)
+        try:
+            return ol.to_markdown(ol.parse_answer(answer, roles))
+        except Unusable as exc:
+            last = str(exc)
+            log.warning("The outline was unusable, asking again: %s", exc)
+    raise ModelError(last or "The model returned no usable outline.")
+
+
+def outline_from_material(material, *, slides: int | None = None, client=None,
+                          **options) -> str:
+    """An outline over documents, as Markdown, planned by the model.
+
+    ``material`` is a path, a list of paths or a ``Material`` that was read already. The
+    documents are read here, the model only ever sees their text. Material that is longer
+    than the model window is planned through its topics instead of being cut off.
+    """
+    settings = resolve(slides=slides, **options)
+    found = mt.coerce(material, max_files=settings.max_material_files,
+                      max_chars=settings.max_material_chars,
+                      max_pages=settings.max_source_pages, max_file_mb=settings.max_file_mb)
+    _, analysis, meta = library.load(settings.template, settings.template_dir)
+    params = _params(settings, meta)
+    roles = template.selectable_roles(analysis)
+    client = client or llm.make_client(settings)
+    budget = bd.Budget(lambda messages: llm.call_json(client, settings, messages),
+                       settings.language, settings.context_window)
+    block = budget.fit(found.block)
+    # The amount of material decides the length of the deck, unless a number was asked for.
+    wanted = settings.slides or ol.target_slides(found.chars)
+    shares = ol.slides_per_file(found.weights, wanted - ol.FRAME_SLIDES)
+    last = ""
+    for _ in range(OUTLINE_TRIES):
+        messages = ol.build_material_messages(block, params, roles, files=found.names,
+                                              slides=wanted, shares=shares)
         answer = llm.call_json(client, settings, messages)
         try:
             return ol.to_markdown(ol.parse_answer(answer, roles))
