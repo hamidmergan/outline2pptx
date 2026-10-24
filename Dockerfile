@@ -23,7 +23,7 @@ USER app
 EXPOSE 8000
 VOLUME ["/data"]
 
-# The web UI: a topic or an outline in the browser, a PowerPoint file back.
+# The web UI: a topic, your documents or an outline in the browser, a PowerPoint file back.
 # Settings come from OUTLINE2PPTX_* environment variables, for example OUTLINE2PPTX_BASE_URL
 # and OUTLINE2PPTX_MODEL, or from the fields on the page.
 CMD ["outline2pptx", "serve", "--host", "0.0.0.0", "--port", "8000"]

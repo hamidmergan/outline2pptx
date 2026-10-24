@@ -1,6 +1,6 @@
 # outline2pptx
 
-A Python tool that builds a PowerPoint deck from a Markdown outline or from a plain topic. The model plans the outline and writes the slide content. The file itself is built with python-pptx from a template, so the result is a normal editable `.pptx`.
+A Python tool that builds a PowerPoint deck from your own documents, from a Markdown outline or from a plain topic. The model plans the outline and writes the slide content. The file itself is built with python-pptx from a template, so the result is a normal editable `.pptx`.
 
 ![One slide of a deck built with the clean template](https://raw.githubusercontent.com/hamidmergan/outline2pptx/main/docs/example.png)
 
@@ -13,15 +13,17 @@ outline2pptx currently writes:
 - Illustrations from an image model, and a deck without one simply has no picture boxes
 - Speaker notes, on request
 
+It reads PDF, DOCX, PPTX, Markdown and plain text. A PDF is read by its layout, so the running header and the footer of a handout do not turn up as bullet points on a slide.
+
 ## Prerequisites
 
 - Python 3.10 or newer
-- A server with an OpenAI-compatible API and a **text model** (for example Ollama, vLLM, LM Studio, a university server or a cloud provider). It is needed for `--topic` and for writing the slides.
+- A server with an OpenAI-compatible API and a **text model** (for example Ollama, vLLM, LM Studio, a research server or a cloud provider). It is needed for `--topic`, for `--material` and for writing the slides.
 - An **image model** on the same kind of API, only needed for `--images`. Without one the deck is built without pictures, and a slide that asked for one keeps its text alone.
 - An API key is optional. Many self-hosted servers do not need one.
 - LibreOffice, only needed for `--preview`. Nothing else uses it.
 
-If you run your own model, your topic and your slide text stay on your own network. Nothing leaves your machine or data center.
+If you run your own model, your documents, your topic and your slide text stay on your own network. Nothing leaves your machine or data center.
 
 ## Installation
 
@@ -57,6 +59,15 @@ outline2pptx outline.md -o deck.pptx --base-url http://localhost:11434/v1 --mode
 
 Without `-o`, the deck is written next to the outline as `outline.pptx`. Use `-` to read the outline from standard input.
 
+Build a deck from your own documents:
+
+```bash
+outline2pptx --material handout.pdf notes.docx -o deck.pptx \
+  --base-url http://localhost:11434/v1 --model your-model
+```
+
+The documents are read first, and their size and page count are printed to stderr before the first call is paid for. The amount of material decides how long the deck becomes, unless `--slides` says otherwise. Material longer than one call can carry is boiled down to the topics it covers and planned from those, so nothing is cut off at the end where the last document stands. Nothing is ever shortened silently: material over `--max-material-chars` is refused with an error naming the limit.
+
 Let the model plan the outline from a topic instead:
 
 ```bash
@@ -67,7 +78,7 @@ outline2pptx --topic "How honeybees pollinate flowers" --slides 12 -o deck.pptx 
 Print the planned outline and build nothing, so you can edit it first:
 
 ```bash
-outline2pptx --topic "How honeybees pollinate flowers" --outline-only > outline.md
+outline2pptx --material handout.pdf --outline-only > outline.md
 ```
 
 Pick a template and draw the illustrations:
@@ -125,6 +136,12 @@ A heading with no text under it becomes a section divider. A heading with text b
 
 The cover and the closing slide are added from the title and the last heading. A deck has between 3 and 30 slides. An outline file outside that range is refused with an error naming the limit, so split a longer plan into several decks. Nothing in an outline file is ever dropped or renamed, and every heading needs a title of its own, a role tag alone is not enough.
 
+### Documents
+
+`--material` takes one or more files: `.pdf`, `.docx`, `.pptx`, `.md` and `.txt`. At most ten of them, at most 200 pages and 500 MB each, and at most 500,000 characters in sum. A PDF without a text layer is refused, nothing is recognised from a picture.
+
+Each file keeps its name in the material, so the model can tell two documents apart. Over several files every one of them gets slides of its own, shared out by how much it brings, and the slide before the closing one compares the documents along the same points.
+
 ### Python API
 
 ```python
@@ -139,6 +156,25 @@ deck = build(
 )
 print(deck.info["slides"], "slides")
 ```
+
+Build a deck from documents, with the outline in between so you can edit it:
+
+```python
+from outline2pptx import outline_from_material, read_material, build
+
+material = read_material(["handout.pdf", "notes.docx"])
+print(material.chars, "characters from", material.names)
+
+text = outline_from_material(
+    material,
+    base_url="http://localhost:11434/v1",
+    model="your-model",
+)
+deck = build(text, base_url="http://localhost:11434/v1", model="your-model")
+deck.save("deck.pptx")
+```
+
+`outline_from_material` also takes a path or a list of paths straight away, and `read_material` only exists so a caller can show what was read before any model call. `text_material("...")` wraps a text that has no document behind it.
 
 Plan the outline first and edit it before building:
 
@@ -187,7 +223,12 @@ Order: argument, then environment variable, then default.
 | `language` / `--language` | `OUTLINE2PPTX_LANGUAGE` | `en` |
 | `template` / `--template` | `OUTLINE2PPTX_TEMPLATE` | `clean` |
 | `template_dir` / `--template-dir` | `OUTLINE2PPTX_TEMPLATE_DIR` | none |
-| `slides` / `--slides` | `OUTLINE2PPTX_SLIDES` | the model decides, 3 to 30, for a topic only |
+| `slides` / `--slides` | `OUTLINE2PPTX_SLIDES` | 3 to 30, for a topic or for material: the model decides over a topic, the amount of material decides over documents |
+| `context_window` / `--context-window` | `OUTLINE2PPTX_CONTEXT_WINDOW` | 131072 tokens |
+| `max_material_chars` / `--max-material-chars` | `OUTLINE2PPTX_MAX_MATERIAL_CHARS` | 500000 |
+| `max_material_files` / `--max-material-files` | `OUTLINE2PPTX_MAX_MATERIAL_FILES` | 10 |
+| `max_pages` / `--max-pages` | `OUTLINE2PPTX_MAX_SOURCE_PAGES` | 200 per document |
+| `max_file_mb` / `--max-file-mb` | `OUTLINE2PPTX_MAX_FILE_MB` | 500 per document |
 | `images` / `--images` | `OUTLINE2PPTX_IMAGES` | off |
 | `notes` / `--notes` | `OUTLINE2PPTX_NOTES` | off |
 | `presenter` / `--presenter` | `OUTLINE2PPTX_PRESENTER` | empty |
@@ -211,7 +252,7 @@ Start a local page with the same options as the CLI:
 outline2pptx serve
 ```
 
-It listens on `http://127.0.0.1:8000`. The page has three steps: content, outline and done. Enter a topic and let the model plan the outline, or paste your own Markdown. Edit the outline, pick a template and a language, then build the deck and download it. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
+It listens on `http://127.0.0.1:8000`. The page has three steps: content, outline and done. The first step offers all three ways in and says which one is in use: a topic, your own documents or your own Markdown. Uploaded documents are read on the spot and the page shows how much text came out of them, and whether that was more than one call can carry. Edit the outline, pick a template and a language, then build the deck and download it. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
 
 The page is available in English and German.
 
@@ -236,11 +277,21 @@ The CLI works in the container too:
 docker compose run --rm outline2pptx outline2pptx outline.md -o /data/deck.pptx
 ```
 
+Documents are read from the same folder:
+
+```bash
+docker compose run --rm outline2pptx outline2pptx --material /data/handout.pdf -o /data/deck.pptx
+```
+
 ## Limitations
 
 Quality depends on the chosen model. A small model writes thin bullets, picks the wrong body kind and sometimes ignores the language. Slides that come back too thin are asked for once more, but the result is still worth reading before you present it.
 
 Charts and tables are built from what the model returns, so the numbers are only as good as its source. Check them.
+
+The documents shape the outline, and every slide is written from the title and the gist its entry carries. A gist that says too little about the material leaves the slide text to the model, so read the outline before the slides are written.
+
+A scanned PDF without a text layer carries no text for the deck. There is no text recognition.
 
 A template only works if its layouts can be matched to the roles. A deck built from a very unusual template may fall back to plain text slides.
 

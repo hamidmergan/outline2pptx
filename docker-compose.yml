@@ -6,7 +6,7 @@ services:
       # this computer only, the page has no login
       - "127.0.0.1:${OUTLINE2PPTX_PORT:-8000}:8000"
     volumes:
-      # Where the CLI in the container reads outlines and writes decks.
+      # Where the CLI in the container reads outlines and documents and writes decks.
       - ./data:/data
     environment:
       # The chat model that plans the outline and writes the slides. Both are required.
@@ -29,6 +29,12 @@ services:
       OUTLINE2PPTX_INSTRUCTIONS: "${OUTLINE2PPTX_INSTRUCTIONS:-}"
       OUTLINE2PPTX_STYLE_TEXT: "${OUTLINE2PPTX_STYLE_TEXT:-}"
       OUTLINE2PPTX_NOTICE: "${OUTLINE2PPTX_NOTICE:-}"
+      # The material a deck is built from, and the window it has to fit into.
+      OUTLINE2PPTX_CONTEXT_WINDOW: "${OUTLINE2PPTX_CONTEXT_WINDOW:-131072}"
+      OUTLINE2PPTX_MAX_MATERIAL_CHARS: "${OUTLINE2PPTX_MAX_MATERIAL_CHARS:-500000}"
+      OUTLINE2PPTX_MAX_MATERIAL_FILES: "${OUTLINE2PPTX_MAX_MATERIAL_FILES:-10}"
+      OUTLINE2PPTX_MAX_SOURCE_PAGES: "${OUTLINE2PPTX_MAX_SOURCE_PAGES:-200}"
+      OUTLINE2PPTX_MAX_FILE_MB: "${OUTLINE2PPTX_MAX_FILE_MB:-500}"
       # Limits.
       OUTLINE2PPTX_BATCH: "${OUTLINE2PPTX_BATCH:-5}"
       OUTLINE2PPTX_WRITE_PARALLELISM: "${OUTLINE2PPTX_WRITE_PARALLELISM:-3}"
