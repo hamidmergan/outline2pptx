@@ -3,7 +3,8 @@ services:
     build: .
     image: outline2pptx
     ports:
-      - "8000:8000"
+      # this computer only, the page has no login
+      - "127.0.0.1:${OUTLINE2PPTX_PORT:-8000}:8000"
     volumes:
       # Where the CLI in the container reads outlines and writes decks.
       - ./data:/data
