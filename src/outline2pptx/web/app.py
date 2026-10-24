@@ -1,4 +1,5 @@
-"""The web UI of outline2pptx: a topic or an outline in the browser, a PowerPoint file back.
+"""The web UI of outline2pptx: a topic, an outline or your documents in the browser, a
+PowerPoint file back.
 
 One run at a time. The deck stays in memory until the next one replaces it, nothing is
 written to disk.
@@ -13,14 +14,18 @@ from pathlib import Path
 from typing import Optional, Sequence
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from .. import __version__, api
-from ..config import MAX_OUTLINE_CHARS, MAX_TOPIC_CHARS, MAX_SLIDES, MIN_SLIDES, resolve
+from .. import __version__, api, budget as bd
+from ..config import (
+    DEFAULT_WINDOW_TOKENS, MAX_MATERIAL_CHARS, MAX_MATERIAL_FILES, MAX_OUTLINE_CHARS,
+    MAX_TOPIC_CHARS, MAX_SLIDES, MIN_SLIDES, resolve,
+)
 from ..errors import ConfigError, DeckError
+from ..source_reading import EXTENSIONS
 
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger(__name__)
@@ -94,6 +99,27 @@ def _clean(value: str, cap: int) -> Optional[str]:
     return text or None
 
 
+def _safe_name(name: str) -> str:
+    """The plain file name of an upload, without any path the browser sent along."""
+    return Path(name.replace("\\", "/")).name
+
+
+def _window_chars(settings) -> int:
+    """How much material one call may carry, 0 when the window is set too small for a deck."""
+    try:
+        return bd.window_chars(settings.context_window if settings else DEFAULT_WINDOW_TOKENS)
+    except ConfigError:
+        return 0
+
+
+def _model_fields(raw: str) -> ModelFields:
+    """The settings of one upload, sent as JSON beside the files."""
+    try:
+        return ModelFields.model_validate_json(raw or "{}")
+    except ValidationError as exc:
+        raise HTTPException(400, "The settings of the request cannot be read.") from exc
+
+
 def create_app(defaults: Optional[dict] = None,
                allowed_hosts: Optional[Sequence[str]] = None) -> FastAPI:
     """The page and its JSON API. ``allowed_hosts`` limits the Host header."""
@@ -159,6 +185,11 @@ def create_app(defaults: Optional[dict] = None,
             "max_slides": MAX_SLIDES,
             "max_topic_chars": MAX_TOPIC_CHARS,
             "max_outline_chars": MAX_OUTLINE_CHARS,
+            "extensions": list(EXTENSIONS),
+            "max_material_files": settings.max_material_files if settings else MAX_MATERIAL_FILES,
+            "max_material_chars": settings.max_material_chars if settings else MAX_MATERIAL_CHARS,
+            # Material longer than this is planned through its topics instead of in full.
+            "window_chars": _window_chars(settings),
             "max_presenter_chars": MAX_PRESENTER_CHARS,
             "max_style_chars": MAX_STYLE_CHARS,
             "max_instruction_chars": MAX_INSTRUCTION_CHARS,
@@ -193,6 +224,45 @@ def create_app(defaults: Optional[dict] = None,
             with lock:
                 planning.clear()
         return {"outline": text}
+
+    @app.post("/api/material")
+    def material(files: list[UploadFile] = File(...), fields: str = Form("{}"),
+                 slides: Optional[int] = Form(None)):
+        """The uploaded documents read and planned into an outline, in one request."""
+        import shutil
+        import tempfile
+
+        request = _model_fields(fields)
+        if not files:
+            raise HTTPException(400, "Choose at least one document.")
+        with lock:
+            if job.state == "running" or planning.is_set():
+                raise HTTPException(409, "A presentation is being created right now.")
+            planning.set()
+        try:
+            with tempfile.TemporaryDirectory(prefix="outline2pptx-") as folder:
+                paths = []
+                for item in files:
+                    name = _safe_name(item.filename or "")
+                    if not name:
+                        raise HTTPException(400, "A file without a name cannot be read.")
+                    target = Path(folder) / name
+                    with target.open("wb") as handle:
+                        shutil.copyfileobj(item.file, handle)
+                    paths.append(target)
+                # Read first, so the answer can say how large the material turned out to be
+                # even when the planning call then fails.
+                found = api.material_for(paths, **options(request))
+                text = api.outline_from_material(found, slides=slides, **options(request))
+                limit = _window_chars(resolve(**options(request)))
+        except DeckError as exc:
+            raise HTTPException(400, str(exc)) from None
+        finally:
+            with lock:
+                planning.clear()
+        # What was read and how large it is, so the page can say why the budget stepped in.
+        return {"outline": text, "material": found.as_dict(),
+                "shortened": bool(limit) and found.chars > limit, "window_chars": limit}
 
     def run(request: BuildRequest, text: str) -> None:
         def progress(step: str, done: int, total: int) -> None:

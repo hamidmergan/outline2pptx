@@ -4,14 +4,27 @@
 const TEXTS = {
   en: {
     title: "Presentation",
-    intro: "Your topic or your outline becomes slides. You check the outline and download the " +
-      "PowerPoint file at the end.",
+    intro: "Your topic, your documents or your outline becomes slides. You check the outline " +
+      "and download the PowerPoint file at the end.",
     stepContent: "Content",
     stepOutline: "Outline",
     stepDone: "Done",
     heading: "What is it about?",
     tabTopic: "Topic",
+    tabMaterial: "Documents",
     tabMarkdown: "Outline",
+    inUseTopic: "In use: the topic. The model plans the deck from what it knows about it.",
+    inUseMaterial: "In use: your documents. The deck is planned over what they say.",
+    inUseMarkdown: "In use: your own outline. No outline is planned, the slides are written straight away.",
+    dropLabel: "Drop your documents here",
+    dropHint: "or click to choose. {kinds}, at most {files} files.",
+    materialSlidesHint: "Empty lets the amount of material decide.",
+    materialRead: "Read: {files} file(s), {pages} page(s), {chars} characters.",
+    materialShortened: "That is more than one call may carry ({limit} characters), so the deck " +
+      "was planned through the topics of the material.",
+    needFiles: "Choose at least one document.",
+    reading: "The documents are being read and planned",
+    nextMaterial: "Read the documents",
     topicLabel: "Topic",
     topicPlaceholder: "For example: how honeybees pollinate flowers",
     slidesLabel: "Number of slides",
@@ -65,14 +78,27 @@ const TEXTS = {
   },
   de: {
     title: "Präsentation",
-    intro: "Aus deinem Thema oder deiner Gliederung werden Folien. Du prüfst die Gliederung und " +
-      "lädst am Ende die PowerPoint-Datei herunter.",
+    intro: "Aus deinem Thema, deinen Dokumenten oder deiner Gliederung werden Folien. Du prüfst " +
+      "die Gliederung und lädst am Ende die PowerPoint-Datei herunter.",
     stepContent: "Inhalt",
     stepOutline: "Gliederung",
     stepDone: "Fertig",
     heading: "Worum soll es gehen?",
     tabTopic: "Thema",
+    tabMaterial: "Dokumente",
     tabMarkdown: "Gliederung",
+    inUseTopic: "Verwendet wird das Thema. Das Modell plant die Folien aus dem, was es dazu weiß.",
+    inUseMaterial: "Verwendet werden deine Dokumente. Die Folien entstehen aus dem, was darin steht.",
+    inUseMarkdown: "Verwendet wird deine eigene Gliederung. Es wird nichts geplant, die Texte entstehen direkt.",
+    dropLabel: "Dokumente hier ablegen",
+    dropHint: "oder klicken zum Auswählen. {kinds}, höchstens {files} Dateien.",
+    materialSlidesHint: "Leer lässt die Menge des Materials entscheiden.",
+    materialRead: "Gelesen: {files} Datei(en), {pages} Seite(n), {chars} Zeichen.",
+    materialShortened: "Das ist mehr, als ein Aufruf tragen kann ({limit} Zeichen). Die Folien " +
+      "wurden deshalb über die Themen des Materials geplant.",
+    needFiles: "Wähle mindestens ein Dokument.",
+    reading: "Die Dokumente werden gelesen und geplant",
+    nextMaterial: "Dokumente lesen",
     topicLabel: "Thema",
     topicPlaceholder: "Zum Beispiel: wie Honigbienen Blüten bestäuben",
     slidesLabel: "Anzahl der Folien",
@@ -128,7 +154,7 @@ const TEXTS = {
 
 const $ = (id) => document.getElementById(id);
 const state = { lang: "en", info: null, deck: null, tab: "topic", step: "content",
-                timer: null, slides: [] };
+                timer: null, slides: [], files: [], material: null };
 
 function fill(text, values) {
   return String(text).replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
@@ -150,7 +176,12 @@ function paint() {
   if (state.info) {
     const hint = document.querySelector('[data-t="slidesHint"]');
     hint.textContent = t("slidesHint", { lo: state.info.min_slides, hi: state.info.max_slides });
+    $("dropHint").textContent = t("dropHint", {
+      kinds: (state.info.extensions || []).join(" "), files: state.info.max_material_files });
   }
+  $("inUse").textContent = t(`inUse${state.tab[0].toUpperCase()}${state.tab.slice(1)}`);
+  paintFiles();
+  paintMaterial();
   document.querySelectorAll(".lang").forEach((b) => {
     b.classList.toggle("on", b.dataset.lang === state.lang);
   });
@@ -216,9 +247,83 @@ function showTab(tab) {
   state.tab = tab;
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
   $("topicPane").hidden = tab !== "topic";
+  $("materialPane").hidden = tab !== "material";
   $("markdownPane").hidden = tab !== "markdown";
   $("plan").hidden = tab !== "topic";
+  $("planMaterial").hidden = tab !== "material";
   $("skip").hidden = tab !== "markdown";
+  $("inUse").textContent = t(`inUse${tab[0].toUpperCase()}${tab.slice(1)}`);
+}
+
+function size(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function number(value) {
+  return new Intl.NumberFormat(state.lang === "de" ? "de-DE" : "en-GB").format(value);
+}
+
+function paintFiles() {
+  const list = $("fileList");
+  list.innerHTML = "";
+  state.files.forEach((file) => {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.textContent = file.name;
+    const bytes = document.createElement("span");
+    bytes.className = "size";
+    bytes.textContent = size(file.size);
+    li.append(name, bytes);
+    list.append(li);
+  });
+}
+
+// What was really read out of the documents, so the budget is no surprise.
+function paintMaterial() {
+  const box = $("materialInfo");
+  const found = state.material;
+  if (!found) { box.textContent = ""; return; }
+  let text = t("materialRead", { files: found.material.files.length,
+                                 pages: found.material.pages,
+                                 chars: number(found.material.chars) });
+  if (found.shortened) text += ` ${t("materialShortened", { limit: number(found.window_chars) })}`;
+  box.textContent = text;
+}
+
+function addFiles(chosen) {
+  const most = (state.info && state.info.max_material_files) || 10;
+  state.files = Array.from(chosen).slice(0, most);
+  state.material = null;
+  paintFiles();
+  paintMaterial();
+}
+
+async function planFromMaterial() {
+  if (!state.files.length) { error("contentError", t("needFiles")); return; }
+  error("contentError", "");
+  $("planMaterial").disabled = true;
+  $("contentStatus").textContent = t("reading");
+  try {
+    const body = new FormData();
+    state.files.forEach((file) => body.append("files", file));
+    body.append("fields", JSON.stringify(fields()));
+    const slides = parseInt($("materialSlides").value, 10);
+    if (Number.isFinite(slides)) body.append("slides", String(slides));
+    const response = await fetch("/api/material", { method: "POST", body });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || response.statusText);
+    state.material = data;
+    paintMaterial();
+    $("outline").value = data.outline;
+    showStep("outline");
+  } catch (e) {
+    error("contentError", `${t("outlineFailed")} ${e.message}`);
+  } finally {
+    $("planMaterial").disabled = false;
+    $("contentStatus").textContent = "";
+  }
 }
 
 function fields() {
@@ -373,6 +478,18 @@ document.querySelectorAll(".tab").forEach((b) => {
   b.addEventListener("click", () => showTab(b.dataset.tab));
 });
 $("plan").addEventListener("click", plan);
+$("planMaterial").addEventListener("click", planFromMaterial);
+$("files").addEventListener("change", (event) => addFiles(event.target.files));
+$("drop").addEventListener("dragover", (event) => {
+  event.preventDefault();
+  $("drop").classList.add("over");
+});
+$("drop").addEventListener("dragleave", () => $("drop").classList.remove("over"));
+$("drop").addEventListener("drop", (event) => {
+  event.preventDefault();
+  $("drop").classList.remove("over");
+  addFiles(event.dataTransfer.files);
+});
 $("skip").addEventListener("click", toOutlineStep);
 $("build").addEventListener("click", build);
 $("back").addEventListener("click", () => showStep("content"));

@@ -59,6 +59,19 @@ main { max-width: 900px; margin: 0 auto; padding: 24px; }
   font-weight: 600; cursor: pointer;
 }
 .tab.on { border-color: var(--accent); color: var(--accent); background: var(--tile); }
+.inuse { margin: -6px 0 14px; }
+.drop {
+  display: grid; gap: 4px; justify-items: center; padding: 26px 16px; margin-bottom: 14px;
+  border: 2px dashed var(--line); border-radius: 14px; text-align: center; cursor: pointer;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--tile); }
+.files { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 4px; }
+.files li {
+  display: flex; align-items: center; gap: 10px; padding: 5px 10px;
+  border: 2px solid var(--line); border-radius: 8px; font-size: 15px;
+}
+.files .size { color: var(--muted); margin-left: auto; white-space: nowrap; font-size: 14px; }
+#materialInfo { margin: 0; }
 .field { display: block; margin-bottom: 14px; }
 .field > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .field > small { display: block; margin-top: 4px; }

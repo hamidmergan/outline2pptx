@@ -30,8 +30,10 @@
       <h2 data-t="heading">What is it about?</h2>
       <div class="tabs" role="tablist">
         <button type="button" class="tab on" data-tab="topic" data-t="tabTopic">Topic</button>
+        <button type="button" class="tab" data-tab="material" data-t="tabMaterial">Documents</button>
         <button type="button" class="tab" data-tab="markdown" data-t="tabMarkdown">Outline</button>
       </div>
+      <p id="inUse" class="muted inuse" aria-live="polite"></p>
 
       <div id="topicPane">
         <label class="field">
@@ -43,6 +45,21 @@
           <input type="number" id="slides" min="3" max="30" placeholder="">
           <small class="muted" data-t="slidesHint"></small>
         </label>
+      </div>
+
+      <div id="materialPane" hidden>
+        <label id="drop" class="drop">
+          <input type="file" id="files" multiple hidden aria-label="Choose the documents of the deck">
+          <strong data-t="dropLabel">Drop your documents here</strong>
+          <span id="dropHint" class="muted"></span>
+        </label>
+        <ul id="fileList" class="files"></ul>
+        <label class="field small">
+          <span data-t="slidesLabel">Number of slides</span>
+          <input type="number" id="materialSlides" min="3" max="30" placeholder="">
+          <small class="muted" data-t="materialSlidesHint"></small>
+        </label>
+        <p id="materialInfo" class="muted"></p>
       </div>
 
       <div id="markdownPane" hidden>
@@ -113,6 +130,7 @@
 
     <section class="card" id="startCard">
       <button type="button" id="plan" class="primary" data-t="next">Create outline</button>
+      <button type="button" id="planMaterial" class="primary" data-t="nextMaterial" hidden>Read the documents</button>
       <button type="button" id="skip" class="button" data-t="buildDirect">Create slides</button>
       <p id="contentStatus" class="muted" aria-live="polite"></p>
       <p id="contentError" class="error" role="alert" hidden></p>

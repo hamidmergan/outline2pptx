@@ -1,3 +1,4 @@
+import json
 import time
 from io import BytesIO
 
@@ -5,8 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 from pptx import Presentation
 
-from conftest import outline_answer
+from conftest import PDF_FOOTER, outline_answer
+from outline2pptx import api
 from test_api import OUTLINE_MD, answer_for_batch
+from test_material_outline import echo_slides, material_lines
 
 pytest.importorskip("fastapi")
 
@@ -48,6 +51,11 @@ def test_info_lists_the_templates_and_the_limits():
     assert data["languages"] == ["de", "en"]
     assert data["min_slides"] == 3 and data["max_slides"] == 30
     assert data["configured"] is False
+    # What the documents field on the page needs to know.
+    assert ".pdf" in data["extensions"] and ".docx" in data["extensions"]
+    assert data["max_material_files"] == 10
+    assert data["max_material_chars"] == 500_000
+    assert data["window_chars"] > 0
 
 
 def test_info_shows_what_the_environment_decided(server):
@@ -231,3 +239,138 @@ def test_the_page_shows_every_field_of_the_deck_info(server):
         if key == "slides":
             continue
         assert f'"{key}"' in script, f"the page never reads {key}"
+
+
+# --- Documents on the page ---------------------------------------------------------------
+
+def upload(client, paths, **form):
+    files = [("files", (p.name, p.read_bytes(), "application/octet-stream")) for p in paths]
+    data = {"fields": json.dumps(form.pop("fields", {})), **{k: str(v) for k, v in form.items()}}
+    return client.post("/api/material", files=files, data=data)
+
+
+def test_the_page_offers_all_three_inputs():
+    page = make_client().get("/").text
+    assert 'data-tab="topic"' in page
+    assert 'data-tab="material"' in page
+    assert 'data-tab="markdown"' in page
+    assert 'id="files"' in page and "multiple" in page
+    # And it says which one is in use.
+    assert 'id="inUse"' in page
+    script = make_client().get("/static/app.js").text
+    assert "inUseMaterial" in script and "materialRead" in script
+
+
+def test_uploaded_documents_are_read_and_planned_into_an_outline(server, handout_pdf):
+    server.outline = material_lines
+    client = make_client(server)
+    response = upload(client, [handout_pdf])
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["outline"].startswith("# ")
+    # The size of what was read reaches the page, together with the window it is measured against.
+    assert data["material"]["files"] == [{"name": "leitfaden.pdf",
+                                         "chars": data["material"]["files"][0]["chars"],
+                                         "pages": 6}]
+    assert data["material"]["chars"] > 0
+    assert data["material"]["pages"] == 6
+    assert data["shortened"] is False
+    assert data["window_chars"] > data["material"]["chars"]
+    # The handout reached the model, its repeating footer did not.
+    sent = server.requests[0]["body"]["messages"][1]["content"]
+    assert "Jahresarbeitszahl" in sent
+    assert PDF_FOOTER not in sent
+
+
+def test_the_page_is_told_when_the_material_was_planned_through_its_topics(server, tmp_path):
+    path = tmp_path / "lang.txt"
+    path.write_text("\n\n".join(f"Abschnitt {n}: Die Jahresarbeitszahl steigt. "
+                                 + "Fuellsatz. " * 200 for n in range(1, 40)))
+    server.topics = lambda body: json.dumps({"topics": [
+        {"title": "Quelle", "gist": "Was das Material sagt."},
+        {"title": "Zahl", "gist": "Welche Zahlen es nennt."},
+        {"title": "Heizstab", "gist": "Wann er anspringt."}]})
+    server.outline = material_lines
+    client = make_client(server, context_window=32_768)
+    data = upload(client, [path]).json()
+    assert data["shortened"] is True
+    assert data["material"]["chars"] > data["window_chars"] > 0
+    assert "topics" in server.kinds()
+
+
+def test_several_documents_can_be_uploaded_at_once(server, handout_pdf, handout_docx):
+    server.outline = material_lines
+    data = upload(make_client(server), [handout_pdf, handout_docx]).json()
+    assert [f["name"] for f in data["material"]["files"]] == ["leitfaden.pdf", "leitfaden.docx"]
+    system = server.requests[0]["body"]["messages"][0]["content"]
+    assert "comes from 2 files" in system
+
+
+def test_a_number_of_slides_from_the_page_reaches_the_call(server, handout_docx):
+    server.outline = material_lines
+    upload(make_client(server), [handout_docx], slides=15)
+    assert "Plan around 15 slides" in server.requests[0]["body"]["messages"][0]["content"]
+
+
+def test_a_document_the_deck_cannot_use_is_refused(server, tmp_path):
+    path = tmp_path / "sound.mp3"
+    path.write_bytes(b"not a document")
+    response = upload(make_client(server), [path])
+    assert response.status_code == 400
+    assert ".mp3" in response.json()["detail"]
+    assert server.requests == []
+
+
+def test_material_over_the_limit_is_refused_with_the_setting(server, tmp_path):
+    path = tmp_path / "lang.txt"
+    path.write_text("Ein Satz ueber die Waermepumpe. " * 400)
+    client = make_client(server, max_material_chars=1000)
+    response = upload(client, [path])
+    assert response.status_code == 400
+    assert "OUTLINE2PPTX_MAX_MATERIAL_CHARS" in response.json()["detail"]
+
+
+def test_an_upload_without_a_model_says_what_is_missing(handout_docx):
+    response = upload(make_client(), [handout_docx])
+    assert response.status_code == 400
+    assert "base_url" in response.json()["detail"]
+
+
+def test_the_deck_from_uploaded_documents_can_be_downloaded(server, handout_pdf):
+    server.outline = material_lines
+    server.slides = echo_slides
+    client = make_client(server)
+    outline_md = upload(client, [handout_pdf]).json()["outline"]
+    assert client.post("/api/build", json={"outline": outline_md}).json()["state"] == "running"
+    job = wait_for(client)
+    assert job["state"] == "done", job["error"]
+    deck = client.get("/api/download")
+    prs = Presentation(BytesIO(deck.content))
+    texts = [shape.text_frame.text for slide in prs.slides for shape in slide.shapes
+             if shape.has_text_frame]
+    assert any("Waermequelle" in text for text in texts)
+    assert all(PDF_FOOTER not in text for text in texts)
+
+
+def test_an_upload_while_a_build_runs_is_refused(server, handout_docx, monkeypatch):
+    """One run at a time, so a second tab cannot upload while the slides are being written."""
+    import threading
+
+    started, go = threading.Event(), threading.Event()
+    real = api.build
+
+    def slow(text, *args, **kwargs):
+        started.set()
+        assert go.wait(10)
+        return real(text, *args, **kwargs)
+
+    server.slides = answer_for_batch
+    monkeypatch.setattr("outline2pptx.api.build", slow)
+    client = make_client(server)
+    client.post("/api/build", json={"outline": OUTLINE_MD})
+    assert started.wait(10)
+    response = upload(client, [handout_docx])
+    go.set()
+    assert response.status_code == 409
+    assert "right now" in response.json()["detail"]
+    assert wait_for(client)["state"] == "done"
