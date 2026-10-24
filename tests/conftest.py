@@ -185,3 +185,103 @@ def slides_answer(ids, kind="bullets", notes=""):
                             for c in (1, 2)]
         out.append(entry)
     return {"slides": out}
+
+
+# --- Real documents, built once per test, so the readers run on real files ---------------
+
+
+def make_pdf(pages: list[list[tuple[int, int, str]]], width: int = 595,
+             height: int = 842) -> bytes:
+    """A PDF with a text layer, every line placed where it is asked for."""
+    font = "/Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding"
+    objects: list = ["<</Type/Catalog/Pages 2 0 R>>", "", f"<<{font}>>"]
+    kids = []
+    for i, lines in enumerate(pages):
+        number = 4 + 2 * i
+        kids.append(f"{number} 0 R")
+        drawn = []
+        for x, y, text in lines:
+            safe = text.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+            drawn.append(f"BT /F1 11 Tf 1 0 0 1 {x} {y} Tm ({safe}) Tj ET")
+        stream = "\n".join(drawn).encode("cp1252")
+        objects.append(f"<</Type/Page/Parent 2 0 R/MediaBox[0 0 {width} {height}]"
+                       f"/Resources<</Font<</F1 3 0 R>>>>/Contents {number + 1} 0 R>>")
+        objects.append(("stream", f"<</Length {len(stream)}>>".encode(), stream))
+    objects[1] = f"<</Type/Pages/Kids[{' '.join(kids)}]/Count {len(pages)}>>"
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n".encode()
+        if isinstance(body, tuple):
+            out += body[1] + b"\nstream\n" + body[2] + b"\nendstream"
+        else:
+            out += body.encode("cp1252")
+        out += b"\nendobj\n"
+    start = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += f"trailer\n<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{start}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+# A handout whose running header carries a page counter and whose footer repeats.
+PDF_HEADER = "Leitfaden Waermepumpe | Seite {n} von {count}"
+PDF_FOOTER = "Beispielverlag, Ausgabe 2026"
+
+
+def _handout_pages(count: int = 6) -> list[list[tuple[int, int, str]]]:
+    """A handout: a running header with a page counter and a footer on every page."""
+    pages = []
+    for n in range(1, count + 1):
+        pages.append([
+            (72, 800, PDF_HEADER.format(n=n, count=count)),
+            (72, 740, f"Kapitel {n}: Die Waermequelle"),
+            (72, 710, f"Abschnitt {n} erklaert die Jahresarbeitszahl und den Stromverbrauch."),
+            (72, 680, f"Die Vorlauftemperatur {n * 5} Grad entscheidet ueber die Effizienz."),
+            (72, 60, PDF_FOOTER),
+        ])
+    return pages
+
+
+@pytest.fixture
+def handout_pdf(tmp_path):
+    """A six page PDF with a running header, a page counter and a repeating footer."""
+    path = tmp_path / "leitfaden.pdf"
+    path.write_bytes(make_pdf(_handout_pages()))
+    return path
+
+
+@pytest.fixture
+def handout_docx(tmp_path):
+    from docx import Document
+
+    path = tmp_path / "leitfaden.docx"
+    doc = Document()
+    doc.add_heading("Waermepumpe im Altbau", level=1)
+    for n in range(1, 4):
+        doc.add_paragraph(f"Abschnitt {n} erklaert die Jahresarbeitszahl und den Heizstab.")
+    doc.save(str(path))
+    return path
+
+
+@pytest.fixture
+def handout_pptx(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    path = tmp_path / "leitfaden.pptx"
+    deck = Presentation()
+    blank = deck.slide_layouts[6]
+    for n in range(1, 7):
+        slide = deck.slides.add_slide(blank)
+        box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(3))
+        frame = box.text_frame
+        frame.text = f"Folie {n}: Die Waermequelle"
+        frame.add_paragraph().text = f"Die Jahresarbeitszahl liegt bei {n} Komma fuenf."
+        # The same line on every slide, that is what the boilerplate check is for.
+        frame.add_paragraph().text = PDF_FOOTER
+    deck.save(str(path))
+    return path

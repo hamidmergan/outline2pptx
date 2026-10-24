@@ -16,6 +16,24 @@ __all__ = ["Settings", "resolve", "MAX_SLIDES", "MIN_SLIDES"]
 # Limits
 MAX_OUTLINE_CHARS = 200_000
 MAX_TOPIC_CHARS = 2000
+# Material: files that go into one deck, size and pages of one of them, characters in sum.
+MAX_MATERIAL_FILES = 10
+MAX_FILE_MB = 500
+MAX_SOURCE_PAGES = 200
+MAX_MATERIAL_CHARS = 500_000
+# What the task and the answer schema of one call take up in the model window.
+PROMPT_TOKENS = 3_000
+OUTPUT_TOKENS = 4_000
+# Characters one token carries, measured on prose with the usual tokenizers.
+CHARS_PER_TOKEN = 3.0
+# A model whose window nobody named is treated as having this one.
+DEFAULT_WINDOW_TOKENS = 131_072
+# Below this a window carries no useful share of the material and the run is refused.
+MIN_WINDOW_TOKENS = 16_384
+# Topics one part of the material is boiled down to when the whole does not fit,
+# and how many topics a deck is planned from at most.
+MAX_TOPICS_PER_PART = 25
+MAX_TOPICS_TOTAL = 50
 # How many slides the model writes in one content call.
 BATCH = 5
 # How many content calls and how many pictures run at the same time.
@@ -58,6 +76,11 @@ class Settings:
     style_text: str
     instructions: str
     notice: str
+    context_window: int
+    max_material_chars: int
+    max_material_files: int
+    max_source_pages: int
+    max_file_mb: float
     batch: int
     write_parallelism: int
     image_parallelism: int
@@ -109,6 +132,11 @@ def resolve(
     style_text: Optional[str] = None,
     instructions: Optional[str] = None,
     notice: Optional[str] = None,
+    context_window: Optional[int] = None,
+    max_material_chars: Optional[int] = None,
+    max_material_files: Optional[int] = None,
+    max_source_pages: Optional[int] = None,
+    max_file_mb: Optional[float] = None,
     batch: Optional[int] = None,
     write_parallelism: Optional[int] = None,
     image_parallelism: Optional[int] = None,
@@ -168,6 +196,11 @@ def resolve(
         style_text=_pick(style_text, "STYLE_TEXT", DEFAULT_STYLE_TEXT, str),
         instructions=_pick(instructions, "INSTRUCTIONS", "", str),
         notice=_pick(notice, "NOTICE", DEFAULT_NOTICE, str),
+        context_window=_pick(context_window, "CONTEXT_WINDOW", DEFAULT_WINDOW_TOKENS, int),
+        max_material_chars=_pick(max_material_chars, "MAX_MATERIAL_CHARS", MAX_MATERIAL_CHARS, int),
+        max_material_files=_pick(max_material_files, "MAX_MATERIAL_FILES", MAX_MATERIAL_FILES, int),
+        max_source_pages=_pick(max_source_pages, "MAX_SOURCE_PAGES", MAX_SOURCE_PAGES, int),
+        max_file_mb=_pick(max_file_mb, "MAX_FILE_MB", MAX_FILE_MB, float),
         batch=_pick(batch, "BATCH", BATCH, int),
         write_parallelism=_pick(write_parallelism, "WRITE_PARALLELISM", WRITE_PARALLELISM, int),
         image_parallelism=_pick(image_parallelism, "IMAGE_PARALLELISM", IMAGE_PARALLELISM, int),
