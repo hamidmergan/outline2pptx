@@ -24,6 +24,8 @@ _NOT_FILLED = {"DATE", "FOOTER", "SLIDE_NUMBER"}
 # Calendar, Trends and Legend, which are ordinary content layouts.
 _CLOSING_RE = re.compile(r"abschluss|danke|closing|thank|\bend(?:e|ing)?\b", re.I)
 _SECTION_RE = re.compile(r"abschnitt|section", re.I)
+# Text that runs top to bottom, for East Asian scripts. A list written into it lies on its side.
+_VERTICAL_RE = re.compile(r'orient="vert"|\bvert="(?!horz")[^"]+"')
 _LVL1 = re.compile(r"<a:lvl1pPr(?:\s[^>]*[^/])?>(.*?)</a:lvl1pPr>", re.S)
 _SZ = re.compile(r"\ssz=\"(\d+)\"")
 _ANY_SZ = re.compile(r"<a:(?:defRPr|rPr|endParaRPr)[^>]*?\ssz=\"(\d+)\"")
@@ -73,6 +75,7 @@ class Layout:
     name: str
     role: str | None
     fields: list[Field] = field(default_factory=list)
+    vertical: bool = False
 
     def of_kind(self, kind: str) -> list[Field]:
         """Fields of one kind, left to right, then top to bottom."""
@@ -102,7 +105,8 @@ def analyse(source: bytes | str) -> Analysis:
     a = Analysis(width=prs.slide_width, height=prs.slide_height, typeface=_typeface(master))
     for i, layout in enumerate(master.slide_layouts):
         a.layouts.append(Layout(index=i, name=layout.name, role=None,
-                                fields=_fields(layout, title_pt, text_pt)))
+                                fields=_fields(layout, title_pt, text_pt),
+                                vertical=_vertical(layout)))
     _assign_roles(a)
     return a
 
@@ -280,6 +284,11 @@ def _fields(layout, title_pt: float, text_pt: float) -> list[Field]:
     return raw
 
 
+def _vertical(layout) -> bool:
+    """Whether a text field of the layout runs top to bottom."""
+    return any(_VERTICAL_RE.search(_xml(sh._element)) for sh in layout.placeholders)
+
+
 def _signature(l: Layout) -> tuple:
     return tuple(sorted(f.kind for f in l.fields))
 
@@ -288,7 +297,7 @@ def _role(l: Layout, first: Layout) -> str | None:
     kinds = [f.kind for f in l.fields]
     if l is first:
         return "cover"
-    if "heading" not in kinds:
+    if l.vertical or "heading" not in kinds:
         return None
     if _CLOSING_RE.search(l.name):
         return "closing"

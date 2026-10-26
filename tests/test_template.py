@@ -46,3 +46,18 @@ def test_a_closing_layout_stays_out_of_the_selectable_roles():
     assert "Agenda" in [l.name for l in analysis.layouts if l.role == "text"]
     assert sorted(template.selectable_roles(analysis)) == [
         "section", "text", "text_with_image", "two_columns"]
+
+
+def test_a_layout_with_vertical_text_is_never_used():
+    """The stock Office master has two of them, a list written into one lies on its side."""
+    import os
+
+    import pptx
+
+    stock = os.path.join(os.path.dirname(pptx.__file__), "templates", "default.pptx")
+    analysis = template.analyse(stock)
+    for name in ("Title and Vertical Text", "Vertical Title and Text"):
+        assert name in analysis.skipped
+    used = {analysis.layout(i).name for found in analysis.roles.values() for i in found}
+    assert not any("Vertical" in name for name in used)
+    assert "Title and Content" in used
