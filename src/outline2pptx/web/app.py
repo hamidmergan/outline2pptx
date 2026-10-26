@@ -7,7 +7,10 @@ written to disk.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import logging
+import tempfile
 import threading
 from io import BytesIO
 from pathlib import Path
@@ -19,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Str
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from .. import __version__, api, budget as bd
+from .. import __version__, api, budget as bd, library
 from ..config import (
     DEFAULT_WINDOW_TOKENS, MAX_MATERIAL_CHARS, MAX_MATERIAL_FILES, MAX_OUTLINE_CHARS,
     MAX_TOPIC_CHARS, MAX_SLIDES, MIN_SLIDES, resolve,
@@ -35,6 +38,12 @@ LANGUAGES = ("de", "en")
 MAX_PRESENTER_CHARS = 80
 MAX_STYLE_CHARS = 1000
 MAX_INSTRUCTION_CHARS = 1000
+# The template ids of uploaded slide masters start with this. The colon keeps them apart from
+# every file name a template folder can hold.
+UPLOADED = ":uploaded:"
+# How many uploaded masters the server holds, the oldest one goes first.
+MAX_UPLOADS = 5
+MISSING_UPLOAD = "Upload the slide master again, the server no longer holds it."
 
 
 class ModelFields(BaseModel):
@@ -129,6 +138,10 @@ def create_app(defaults: Optional[dict] = None,
     # An outline is planned inside the request, so it has no job state to hold. This flag is
     # all it needs: one outline at a time, and no build while one is being planned.
     planning = threading.Event()
+    # The uploaded slide masters by id, as pptx bytes. Every upload has its own id, so a run
+    # never picks up a master someone else uploaded in between. They live in memory like the
+    # deck and are written to a temporary folder only while a request or a run needs them.
+    uploads: dict[str, dict] = {}
 
     app = FastAPI(title="outline2pptx", version=__version__)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -154,6 +167,21 @@ def create_app(defaults: Optional[dict] = None,
         out.update(extra)
         return out
 
+    @contextlib.contextmanager
+    def with_template(opts: dict):
+        """The options with the uploaded master as a file, for as long as the block runs."""
+        if not str(opts.get("template", "")).startswith(UPLOADED):
+            yield opts
+            return
+        with lock:
+            master = uploads.get(opts["template"])
+        if not master:
+            raise DeckError(MISSING_UPLOAD)
+        with tempfile.TemporaryDirectory(prefix="outline2pptx-") as folder:
+            path = Path(folder) / f"{master['stem']}.pptx"
+            path.write_bytes(master["data"])
+            yield {**opts, "template": str(path)}
+
     @app.middleware("http")
     async def guard(request: Request, call_next):
         host = request.headers.get("host", "")
@@ -163,7 +191,12 @@ def create_app(defaults: Optional[dict] = None,
         own = {host.lower(), request.headers.get("x-forwarded-host", "").lower()}
         if origin is not None and urlsplit(origin).netloc.lower() not in own:
             return PlainTextResponse("Cross-origin requests are not allowed", status_code=403)
-        return await call_next(request)
+        response = await call_next(request)
+        # The page and its scripts are checked again on every load, so an update is never
+        # met by a script the browser kept from the version before.
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -203,6 +236,8 @@ def create_app(defaults: Optional[dict] = None,
             "notes": bool(settings.notes) if settings else False,
             "images": bool(settings.images) if settings else False,
             "preview": available(),
+            # The masters uploaded earlier are still held, so a reload of the page keeps offering them.
+            "uploads": [{"id": key, "name": item["name"]} for key, item in uploads.items()],
             # Without a model in the environment the page asks for one.
             "configured": settings is not None,
         }
@@ -217,7 +252,8 @@ def create_app(defaults: Optional[dict] = None,
                 raise HTTPException(409, "A presentation is being created right now.")
             planning.set()
         try:
-            text = api.outline_from_topic(topic, slides=request.slides, **options(request))
+            with with_template(options(request)) as opts:
+                text = api.outline_from_topic(topic, slides=request.slides, **opts)
         except DeckError as exc:
             raise HTTPException(400, str(exc)) from None
         finally:
@@ -253,7 +289,8 @@ def create_app(defaults: Optional[dict] = None,
                 # Read first, so the answer can say how large the material turned out to be
                 # even when the planning call then fails.
                 found = api.material_for(paths, **options(request))
-                text = api.outline_from_material(found, slides=slides, **options(request))
+                with with_template(options(request)) as opts:
+                    text = api.outline_from_material(found, slides=slides, **opts)
                 limit = _window_chars(resolve(**options(request)))
         except DeckError as exc:
             raise HTTPException(400, str(exc)) from None
@@ -270,8 +307,9 @@ def create_app(defaults: Optional[dict] = None,
                 job.step, job.done, job.total = step, done, total
 
         try:
-            deck = api.build(text, progress=progress,
-                             **options(request, notes=request.notes, images=request.images))
+            with with_template(options(request, notes=request.notes,
+                                       images=request.images)) as opts:
+                deck = api.build(text, progress=progress, **opts)
         except DeckError as exc:
             with lock:
                 job.state, job.error = "error", str(exc)
@@ -289,6 +327,28 @@ def create_app(defaults: Optional[dict] = None,
                           for i, s in enumerate(deck.slides, start=1)]
             job.state, job.step, job.done, job.total = "done", "", len(deck.slides), len(deck.slides)
 
+    @app.post("/api/template")
+    def upload_template(file: UploadFile = File(...)):
+        """A slide master of your own, checked and kept until the next one replaces it."""
+        name = _safe_name(file.filename or "")
+        suffix = Path(name).suffix.lower()
+        data = file.file.read(library.MAX_BYTES + 1)
+        try:
+            data, analysis = library.check(data, suffix)
+        except DeckError as exc:
+            raise HTTPException(400, str(exc)) from None
+        stem = Path(name).stem or "template"
+        key = UPLOADED + hashlib.sha256(data).hexdigest()[:16]
+        with lock:
+            uploads.pop(key, None)
+            uploads[key] = {"name": name, "stem": stem, "data": data}
+            while len(uploads) > MAX_UPLOADS:
+                uploads.pop(next(iter(uploads)))
+        used = [layout for layout in analysis.layouts if layout.role]
+        return {"id": key, "name": name, "layouts": len(analysis.layouts),
+                "used": len(used), "skipped": list(analysis.skipped),
+                "roles": {role: len(found) for role, found in sorted(analysis.roles.items())}}
+
     @app.post("/api/build")
     def build(request: BuildRequest):
         text = request.outline.strip()[:MAX_OUTLINE_CHARS]
@@ -301,6 +361,8 @@ def create_app(defaults: Optional[dict] = None,
                 resolve(**options(request, notes=request.notes, images=request.images))
             except ConfigError as exc:
                 raise HTTPException(400, str(exc)) from None
+            if request.template.startswith(UPLOADED) and request.template not in uploads:
+                raise HTTPException(400, MISSING_UPLOAD)
             job.reset()
             job.state, job.step = "running", "slides"
         threading.Thread(target=run, args=(request, text), daemon=True).start()

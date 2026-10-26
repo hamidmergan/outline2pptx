@@ -252,7 +252,7 @@ Start a local page with the same options as the CLI:
 outline2pptx serve
 ```
 
-It listens on `http://127.0.0.1:8000`. The page has three steps: content, outline and done. The first step offers all three ways in and says which one is in use: a topic, your own documents or your own Markdown. Uploaded documents are read on the spot and the page shows how much text came out of them, and whether that was more than one call can carry. Edit the outline, pick a template and a language, then build the deck and download it. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
+It listens on `http://127.0.0.1:8000`. The page offers all three ways in and says which one is in use: a topic, your own documents or your own Markdown. Pick a template and a language and press Create slides. Instead of a built-in template you can upload a slide master of your own, a `.pptx` or `.potx` file. Its fonts, colours and layouts are used for the deck, and the page says how many of its layouts the builder can use. The upload is kept in memory until the next one replaces it. One click plans the outline, writes the slides and builds the file. After uploaded documents are read, the page shows how much text came out of them, and whether that was more than one call can carry. To edit the outline first, print it with `--outline-only` and paste it into the Outline tab. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
 
 The page is available in English and German.
 

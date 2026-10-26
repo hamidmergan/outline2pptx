@@ -22,6 +22,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `--max-material-chars` is refused with an error naming the limit, never shortened silently
 - Settings for the material: `--context-window`, `--max-material-chars`,
   `--max-material-files`, `--max-pages` and `--max-file-mb`
+- The page takes a slide master of your own, a `.pptx` or `.potx`, and says how many of its
+  layouts are used. Every upload has its own id, so a later upload never changes the master
+  of a run
+
+### Changed
+
+- One button on the page creates the whole deck. The outline is planned and the slides are
+  written in one go, there is no separate outline step any more
+
+### Fixed
+
+- A layout whose text runs top to bottom is no longer used, a list in it lay on its side
+- The page and its scripts are sent with `no-cache`, so a browser never keeps a stale script
+  after an update
 
 ## [0.1.0] - 2026-10-23
 

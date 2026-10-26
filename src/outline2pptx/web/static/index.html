@@ -22,7 +22,6 @@
 
     <ol class="steps" id="steps">
       <li class="on" data-step="content" data-t="stepContent">Content</li>
-      <li data-step="outline" data-t="stepOutline">Outline</li>
       <li data-step="done" data-t="stepDone">Done</li>
     </ol>
 
@@ -75,6 +74,14 @@
         <select id="template"></select>
         <small class="muted" data-t="templateHelp"></small>
       </label>
+      <div class="field">
+        <label class="button upload">
+          <input type="file" id="masterFile" accept=".pptx,.potx" hidden>
+          <span data-t="masterUpload">Upload your own slide master</span>
+        </label>
+        <small id="masterInfo" class="muted" aria-live="polite"></small>
+        <p id="masterError" class="error" role="alert" hidden></p>
+      </div>
 
       <div class="row">
         <label class="field small">
@@ -129,26 +136,9 @@
     </section>
 
     <section class="card" id="startCard">
-      <button type="button" id="plan" class="primary" data-t="next">Create outline</button>
-      <button type="button" id="planMaterial" class="primary" data-t="nextMaterial" hidden>Read the documents</button>
-      <button type="button" id="skip" class="button" data-t="buildDirect">Create slides</button>
+      <button type="button" id="build" class="primary" data-t="build">Create slides</button>
       <p id="contentStatus" class="muted" aria-live="polite"></p>
       <p id="contentError" class="error" role="alert" hidden></p>
-    </section>
-
-    <section class="card" id="outlineCard" hidden>
-      <h2 data-t="outlineTitle">The outline</h2>
-      <p class="muted" data-t="outlineHint"></p>
-      <label class="field">
-        <span class="sr" data-t="outlineLabel">Outline</span>
-        <textarea id="outline" rows="16"></textarea>
-      </label>
-      <div class="row">
-        <button type="button" id="build" class="primary" data-t="build">Create slides</button>
-        <button type="button" id="back" class="button" data-t="back">Back</button>
-      </div>
-      <p id="buildStatus" class="muted" aria-live="polite"></p>
-      <p id="buildError" class="error" role="alert" hidden></p>
     </section>
 
     <section class="card" id="doneCard" hidden>

@@ -4,10 +4,9 @@
 const TEXTS = {
   en: {
     title: "Presentation",
-    intro: "Your topic, your documents or your outline becomes slides. You check the outline " +
-      "and download the PowerPoint file at the end.",
+    intro: "Your topic, your documents or your outline becomes slides. One click builds the " +
+      "whole deck and you download the PowerPoint file at the end.",
     stepContent: "Content",
-    stepOutline: "Outline",
     stepDone: "Done",
     heading: "What is it about?",
     tabTopic: "Topic",
@@ -24,7 +23,6 @@ const TEXTS = {
       "was planned through the topics of the material.",
     needFiles: "Choose at least one document.",
     reading: "The documents are being read and planned",
-    nextMaterial: "Read the documents",
     topicLabel: "Topic",
     topicPlaceholder: "For example: how honeybees pollinate flowers",
     slidesLabel: "Number of slides",
@@ -36,6 +34,12 @@ const TEXTS = {
     templateLabel: "Slide master",
     templateHelp: "The slide master sets the font, colors and layout of every slide, with fixed " +
       "placeholders for title, text and images.",
+    masterUpload: "Upload your own slide master",
+    masterUploaded: "{name} (uploaded)",
+    masterReading: "The slide master is being checked",
+    masterUsed: "{used} of {layouts} layouts are used.",
+    masterSkipped: "Skipped, because they have no title field or vertical text: {names}.",
+    masterFailed: "The slide master cannot be used.",
     languageLabel: "Slide language",
     languageEn: "English",
     languageDe: "German",
@@ -50,13 +54,7 @@ const TEXTS = {
     imagesLabel: "Create images",
     modelTitle: "Model",
     modelHint: "No model is set in the environment. Enter an OpenAI-compatible endpoint and a model.",
-    next: "Create outline",
-    buildDirect: "Create slides",
-    outlineTitle: "The outline",
-    outlineLabel: "Outline",
-    outlineHint: "Change the titles, move lines or delete a slide before the slides are written.",
     build: "Create slides",
-    back: "Back",
     doneTitle: "The presentation is done",
     summary: "{n} slides as a PowerPoint file.",
     infoModel: "Text model",
@@ -78,10 +76,9 @@ const TEXTS = {
   },
   de: {
     title: "Präsentation",
-    intro: "Aus deinem Thema, deinen Dokumenten oder deiner Gliederung werden Folien. Du prüfst " +
-      "die Gliederung und lädst am Ende die PowerPoint-Datei herunter.",
+    intro: "Aus deinem Thema, deinen Dokumenten oder deiner Gliederung werden Folien. Ein Klick " +
+      "baut die ganze Präsentation und du lädst am Ende die PowerPoint-Datei herunter.",
     stepContent: "Inhalt",
-    stepOutline: "Gliederung",
     stepDone: "Fertig",
     heading: "Worum soll es gehen?",
     tabTopic: "Thema",
@@ -98,7 +95,6 @@ const TEXTS = {
       "wurden deshalb über die Themen des Materials geplant.",
     needFiles: "Wähle mindestens ein Dokument.",
     reading: "Die Dokumente werden gelesen und geplant",
-    nextMaterial: "Dokumente lesen",
     topicLabel: "Thema",
     topicPlaceholder: "Zum Beispiel: wie Honigbienen Blüten bestäuben",
     slidesLabel: "Anzahl der Folien",
@@ -110,6 +106,12 @@ const TEXTS = {
     templateLabel: "Folienmaster",
     templateHelp: "Der Folienmaster legt Schrift, Farben und Aufbau aller Folien fest, mit festen " +
       "Platzhaltern für Titel, Text und Bilder.",
+    masterUpload: "Eigenen Folienmaster hochladen",
+    masterUploaded: "{name} (hochgeladen)",
+    masterReading: "Der Folienmaster wird geprüft",
+    masterUsed: "{used} von {layouts} Layouts werden genutzt.",
+    masterSkipped: "Übersprungen, weil ihnen ein Titelfeld fehlt oder der Text senkrecht läuft: {names}.",
+    masterFailed: "Der Folienmaster kann nicht verwendet werden.",
     languageLabel: "Sprache der Folien",
     languageEn: "Englisch",
     languageDe: "Deutsch",
@@ -124,13 +126,7 @@ const TEXTS = {
     imagesLabel: "Bilder erzeugen",
     modelTitle: "Modell",
     modelHint: "In der Umgebung ist kein Modell gesetzt. Trag einen OpenAI-kompatiblen Endpunkt und ein Modell ein.",
-    next: "Gliederung erstellen",
-    buildDirect: "Folien erzeugen",
-    outlineTitle: "Die Gliederung",
-    outlineLabel: "Gliederung",
-    outlineHint: "Ändere die Titel, verschiebe Zeilen oder streiche eine Folie, bevor die Texte entstehen.",
-    build: "Folien erzeugen",
-    back: "Zurück",
+    build: "Folien erstellen",
     doneTitle: "Die Präsentation ist fertig",
     summary: "{n} Folien als PowerPoint-Datei.",
     infoModel: "Textmodell",
@@ -146,7 +142,7 @@ const TEXTS = {
     drawing: "Die Bilder werden erzeugt",
     building: "Die Datei wird gebaut",
     outlineFailed: "Die Gliederung konnte nicht erstellt werden.",
-    buildFailed: "Die Folien konnten nicht erzeugt werden.",
+    buildFailed: "Die Folien konnten nicht erstellt werden.",
     needTopic: "Trag zuerst ein Thema ein.",
     needOutline: "Schreib zuerst eine Gliederung.",
   },
@@ -154,7 +150,7 @@ const TEXTS = {
 
 const $ = (id) => document.getElementById(id);
 const state = { lang: "en", info: null, deck: null, tab: "topic", step: "content",
-                timer: null, slides: [], files: [], material: null };
+                timer: null, slides: [], files: [], material: null, masters: [] };
 
 function fill(text, values) {
   return String(text).replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
@@ -182,6 +178,7 @@ function paint() {
   $("inUse").textContent = t(`inUse${state.tab[0].toUpperCase()}${state.tab.slice(1)}`);
   paintFiles();
   paintMaterial();
+  paintMaster();
   document.querySelectorAll(".lang").forEach((b) => {
     b.classList.toggle("on", b.dataset.lang === state.lang);
   });
@@ -239,7 +236,6 @@ function showStep(step) {
   $("contentCard").hidden = step !== "content";
   $("startCard").hidden = step !== "content";
   $("modelCard").hidden = step !== "content" || (state.info && state.info.configured);
-  $("outlineCard").hidden = step !== "outline";
   $("doneCard").hidden = step !== "done";
 }
 
@@ -249,9 +245,6 @@ function showTab(tab) {
   $("topicPane").hidden = tab !== "topic";
   $("materialPane").hidden = tab !== "material";
   $("markdownPane").hidden = tab !== "markdown";
-  $("plan").hidden = tab !== "topic";
-  $("planMaterial").hidden = tab !== "material";
-  $("skip").hidden = tab !== "markdown";
   $("inUse").textContent = t(`inUse${tab[0].toUpperCase()}${tab.slice(1)}`);
 }
 
@@ -300,30 +293,67 @@ function addFiles(chosen) {
   paintMaterial();
 }
 
-async function planFromMaterial() {
-  if (!state.files.length) { error("contentError", t("needFiles")); return; }
-  error("contentError", "");
-  $("planMaterial").disabled = true;
-  $("contentStatus").textContent = t("reading");
+// Every uploaded master as one more entry of the picker, with what the analysis made of the chosen one.
+function paintMaster() {
+  const picker = $("template");
+  const chosen = picker.value;
+  picker.querySelectorAll("option[data-upload]").forEach((option) => option.remove());
+  state.masters.forEach((master) => {
+    const option = document.createElement("option");
+    option.value = master.id;
+    option.dataset.upload = "1";
+    option.textContent = t("masterUploaded", { name: master.name });
+    picker.append(option);
+  });
+  if (chosen) picker.value = chosen;
+  const master = state.masters.find((item) => item.id === picker.value);
+  let text = "";
+  if (master && master.layouts) {
+    text = t("masterUsed", { used: master.used, layouts: master.layouts });
+    if (master.skipped.length) {
+      text += ` ${t("masterSkipped", { names: master.skipped.join(", ") })}`;
+    }
+  }
+  $("masterInfo").textContent = text;
+}
+
+async function uploadMaster(file) {
+  if (!file) return;
+  error("masterError", "");
+  $("masterInfo").textContent = t("masterReading");
   try {
     const body = new FormData();
-    state.files.forEach((file) => body.append("files", file));
-    body.append("fields", JSON.stringify(fields()));
-    const slides = parseInt($("materialSlides").value, 10);
-    if (Number.isFinite(slides)) body.append("slides", String(slides));
-    const response = await fetch("/api/material", { method: "POST", body });
+    body.append("file", file);
+    const response = await fetch("/api/template", { method: "POST", body });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || response.statusText);
-    state.material = data;
-    paintMaterial();
-    $("outline").value = data.outline;
-    showStep("outline");
+    state.masters = state.masters.filter((item) => item.id !== data.id).concat([data]);
+    $("template").value = "";
+    paintMaster();
+    $("template").value = data.id;
+    paintMaster();
   } catch (e) {
-    error("contentError", `${t("outlineFailed")} ${e.message}`);
+    $("masterInfo").textContent = "";
+    error("masterError", `${t("masterFailed")} ${e.message}`);
+    paintMaster();
   } finally {
-    $("planMaterial").disabled = false;
-    $("contentStatus").textContent = "";
+    $("masterFile").value = "";
   }
+}
+
+async function planFromMaterial() {
+  $("contentStatus").textContent = t("reading");
+  const body = new FormData();
+  state.files.forEach((file) => body.append("files", file));
+  body.append("fields", JSON.stringify(fields()));
+  const slides = parseInt($("materialSlides").value, 10);
+  if (Number.isFinite(slides)) body.append("slides", String(slides));
+  const response = await fetch("/api/material", { method: "POST", body });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.detail || response.statusText);
+  state.material = data;
+  paintMaterial();
+  return data.outline;
 }
 
 function fields() {
@@ -370,6 +400,8 @@ async function loadInfo() {
     option.textContent = entry.name;
     picker.append(option);
   });
+  state.masters = (state.info.uploads || []).map((item) => ({ ...item, layouts: 0, used: 0, skipped: [] }));
+  paintMaster();
   if (state.info.template) picker.value = state.info.template;
   if (state.info.language) $("language").value = state.info.language;
   if (state.info.presenter) $("presenter").value = state.info.presenter;
@@ -380,50 +412,45 @@ async function loadInfo() {
   showStep("content");
 }
 
-async function plan() {
-  const topic = $("topic").value.trim();
-  if (!topic) { error("contentError", t("needTopic")); return; }
-  error("contentError", "");
-  $("plan").disabled = true;
+async function planFromTopic(topic) {
   $("contentStatus").textContent = t("planning");
+  const slides = parseInt($("slides").value, 10);
+  const data = await post("/api/outline", {
+    ...fields(), topic, slides: Number.isFinite(slides) ? slides : null,
+  });
+  return data.outline;
+}
+
+// The one button: plans the outline where there is none yet, then builds the deck.
+async function build() {
+  const topic = $("topic").value.trim();
+  const markdown = $("markdown").value.trim();
+  if (state.tab === "topic" && !topic) { error("contentError", t("needTopic")); return; }
+  if (state.tab === "material" && !state.files.length) { error("contentError", t("needFiles")); return; }
+  if (state.tab === "markdown" && !markdown) { error("contentError", t("needOutline")); return; }
+  error("contentError", "");
+  $("build").disabled = true;
+  let text;
   try {
-    const slides = parseInt($("slides").value, 10);
-    const data = await post("/api/outline", {
-      ...fields(), topic, slides: Number.isFinite(slides) ? slides : null,
-    });
-    $("outline").value = data.outline;
-    showStep("outline");
+    if (state.tab === "topic") text = await planFromTopic(topic);
+    else if (state.tab === "material") text = await planFromMaterial();
+    else text = markdown;
   } catch (e) {
     error("contentError", `${t("outlineFailed")} ${e.message}`);
-  } finally {
-    $("plan").disabled = false;
+    $("build").disabled = false;
     $("contentStatus").textContent = "";
+    return;
   }
-}
-
-function toOutlineStep() {
-  const text = $("markdown").value.trim();
-  if (!text) { error("contentError", t("needOutline")); return; }
-  error("contentError", "");
-  $("outline").value = text;
-  showStep("outline");
-}
-
-async function build() {
-  const text = $("outline").value.trim();
-  if (!text) { error("buildError", t("needOutline")); return; }
-  error("buildError", "");
-  $("build").disabled = true;
-  $("buildStatus").textContent = t("building");
+  $("contentStatus").textContent = t("building");
   try {
     await post("/api/build", {
       ...fields(), outline: text, notes: $("notes").checked, images: $("images").checked,
     });
     state.timer = setInterval(poll, 1000);
   } catch (e) {
-    error("buildError", `${t("buildFailed")} ${e.message}`);
+    error("contentError", `${t("buildFailed")} ${e.message}`);
     $("build").disabled = false;
-    $("buildStatus").textContent = "";
+    $("contentStatus").textContent = "";
   }
 }
 
@@ -437,15 +464,15 @@ async function poll() {
   const response = await fetch("/api/status");
   const job = await response.json();
   if (job.state === "running") {
-    $("buildStatus").textContent = progressText(job);
+    $("contentStatus").textContent = progressText(job);
     return;
   }
   clearInterval(state.timer);
   state.timer = null;
   $("build").disabled = false;
-  $("buildStatus").textContent = "";
+  $("contentStatus").textContent = "";
   if (job.state === "error") {
-    error("buildError", `${t("buildFailed")} ${job.error}`);
+    error("contentError", `${t("buildFailed")} ${job.error}`);
     return;
   }
   state.slides = job.slides;
@@ -477,8 +504,6 @@ document.querySelectorAll(".lang").forEach((b) => {
 document.querySelectorAll(".tab").forEach((b) => {
   b.addEventListener("click", () => showTab(b.dataset.tab));
 });
-$("plan").addEventListener("click", plan);
-$("planMaterial").addEventListener("click", planFromMaterial);
 $("files").addEventListener("change", (event) => addFiles(event.target.files));
 $("drop").addEventListener("dragover", (event) => {
   event.preventDefault();
@@ -490,9 +515,9 @@ $("drop").addEventListener("drop", (event) => {
   $("drop").classList.remove("over");
   addFiles(event.dataTransfer.files);
 });
-$("skip").addEventListener("click", toOutlineStep);
 $("build").addEventListener("click", build);
-$("back").addEventListener("click", () => showStep("content"));
+$("masterFile").addEventListener("change", (event) => uploadMaster(event.target.files[0]));
+$("template").addEventListener("change", paintMaster);
 $("again").addEventListener("click", () => { state.slides = []; showStep("content"); });
 
 showTab("topic");

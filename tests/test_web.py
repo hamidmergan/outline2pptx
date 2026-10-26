@@ -374,3 +374,72 @@ def test_an_upload_while_a_build_runs_is_refused(server, handout_docx, monkeypat
     assert response.status_code == 409
     assert "right now" in response.json()["detail"]
     assert wait_for(client)["state"] == "done"
+
+
+def _master(name="own.pptx", data=None):
+    from outline2pptx import library
+
+    raw = data if data is not None else library.find("forest").read_bytes()
+    return {"file": (name, raw, "application/octet-stream")}
+
+
+def test_an_uploaded_master_is_checked_and_described():
+    data = make_client().post("/api/template", files=_master()).json()
+    assert data["id"].startswith(":uploaded:")
+    assert data["name"] == "own.pptx"
+    assert data["used"] == data["layouts"] - len(data["skipped"]) > 0
+    assert "text" in data["roles"]
+
+
+def test_a_file_that_is_no_master_is_refused():
+    response = make_client().post("/api/template", files=_master("notes.txt", b"plain text"))
+    assert response.status_code == 400
+    assert ".pptx" in response.json()["detail"]
+
+
+def test_the_page_knows_a_master_that_was_uploaded_before():
+    client = make_client()
+    assert client.get("/api/info").json()["uploads"] == []
+    key = client.post("/api/template", files=_master("Our Master.pptx")).json()["id"]
+    assert client.get("/api/info").json()["uploads"] == [{"id": key, "name": "Our Master.pptx"}]
+
+
+def test_build_uses_the_uploaded_master(server):
+    server.slides = answer_for_batch
+    client = make_client(server)
+    key = client.post("/api/template", files=_master("Our Master.pptx")).json()["id"]
+    client.post("/api/build", json={"outline": OUTLINE_MD, "template": key})
+    job = wait_for(client)
+    assert job["state"] == "done", job["error"]
+    assert job["info"]["template"] == "Our Master"
+    deck = Presentation(BytesIO(client.get("/api/download").content))
+    assert len(deck.slides) == len(job["slides"])
+
+
+def test_build_with_the_uploaded_master_needs_one(server):
+    response = make_client(server).post("/api/build", json={"outline": OUTLINE_MD,
+                                                           "template": ":uploaded:0000"})
+    assert response.status_code == 400
+    assert "Upload the slide master" in response.json()["detail"]
+
+
+def test_the_page_and_its_scripts_are_never_taken_from_a_stale_cache():
+    client = make_client()
+    for path in ("/", "/static/app.js", "/static/style.css"):
+        assert client.get(path).headers["cache-control"] == "no-cache"
+
+
+def test_a_later_upload_never_replaces_the_master_a_page_has_chosen(server):
+    """Two people upload one after the other, each run still gets its own master."""
+    server.slides = answer_for_batch
+    client = make_client(server)
+    from outline2pptx import library
+
+    first = client.post("/api/template", files=_master("Forest.pptx")).json()["id"]
+    second = client.post("/api/template", files=_master(
+        "Warm.pptx", library.find("warm").read_bytes())).json()["id"]
+    assert first != second
+    client.post("/api/build", json={"outline": OUTLINE_MD, "template": first})
+    job = wait_for(client)
+    assert job["state"] == "done", job["error"]
+    assert job["info"]["template"] == "Forest"

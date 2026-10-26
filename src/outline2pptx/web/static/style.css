@@ -118,3 +118,5 @@ button:disabled, .primary[aria-disabled="true"] { opacity: 0.5; cursor: not-allo
 }
 .info dt { color: var(--muted); }
 .info dd { margin: 0; overflow-wrap: anywhere; }
+.upload { align-self: flex-start; margin-top: -6px; }
+#masterInfo, #masterError { margin: 6px 0 0; }
