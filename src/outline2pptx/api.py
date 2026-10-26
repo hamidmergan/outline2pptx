@@ -55,6 +55,14 @@ def _params(settings: Settings, meta: dict) -> DeckParams:
                       style_text=settings.style_text or meta.get("style_text", ""))
 
 
+def _template(settings: Settings):
+    """The template, its analysis and metadata. A deck without pictures never gets a picture layout."""
+    data, analysis, meta = library.load(settings.template, settings.template_dir)
+    if not (settings.images and settings.has_image_model):
+        analysis = template.without_pictures(analysis)
+    return data, analysis, meta
+
+
 def list_templates(template_dir: str | Path | None = None) -> list[dict]:
     """Every template that can be used, by id, with its name and picture style."""
     return [{k: v for k, v in t.items() if k != "path"} for t in library.available(template_dir)]
@@ -65,7 +73,7 @@ def outline_from_topic(topic: str, *, slides: int | None = None, client=None, **
     settings = resolve(slides=slides, **options)
     if not topic.strip():
         raise ModelError("No topic was given.")
-    _, analysis, meta = library.load(settings.template, settings.template_dir)
+    _, analysis, meta = _template(settings)
     params = _params(settings, meta)
     roles = template.selectable_roles(analysis)
     client = client or llm.make_client(settings)
@@ -103,7 +111,7 @@ def outline_from_material(material, *, slides: int | None = None, client=None,
     """
     settings = resolve(slides=slides, **options)
     found = material_for(material, **options)
-    _, analysis, meta = library.load(settings.template, settings.template_dir)
+    _, analysis, meta = _template(settings)
     params = _params(settings, meta)
     roles = template.selectable_roles(analysis)
     client = client or llm.make_client(settings)
@@ -130,7 +138,7 @@ def build(outline_md: str, output: str | Path | None = None, *, client=None,
           progress: Progress = None, **options) -> Deck:
     """A deck from a Markdown outline: the model writes every slide, python-pptx builds the file."""
     settings = resolve(**options)
-    data, analysis, meta = library.load(settings.template, settings.template_dir)
+    data, analysis, meta = _template(settings)
     params = _params(settings, meta)
     roles = template.selectable_roles(analysis)
     plan = ol.from_markdown(outline_md, roles)
@@ -182,15 +190,14 @@ def _write(plan: Outline, layouts: dict[str, int], analysis, params: DeckParams,
     rows = plan.rows
     batches = [rows[i:i + settings.batch] for i in range(0, len(rows), settings.batch)]
     # Planned over the whole deck, the batches run at once and cannot see each other's cards.
-    all_specs = {r.id: template.spec_for(analysis.layout(layouts[r.id]), analysis) for r in rows}
-    with_cards = sl.card_slides(rows, all_specs)
+    all_specs = sl.spread(rows, {r.id: template.spec_for(analysis.layout(layouts[r.id]), analysis)
+                                 for r in rows})
     source = f"{plan.title}. {plan.subtitle}".strip()
     done = 0
     out: dict[str, Slide] = {}
 
     def write(batch: list[OutlineRow]) -> list[Slide]:
-        specs = {r.id: all_specs[r.id] if r.id in with_cards else sl.without_cards(all_specs[r.id])
-                 for r in batch}
+        specs = {r.id: all_specs[r.id] for r in batch}
         messages = sl.build_messages(source, params, batch, specs)
         last = ""
         for _ in range(SLIDE_TRIES):

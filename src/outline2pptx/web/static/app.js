@@ -369,6 +369,8 @@ function fields() {
     presenter: $("presenter").value,
     instructions: $("instructions").value,
     style_text: $("styleText").value,
+    notes: $("notes").checked,
+    images: $("images").checked,
   };
 }
 
@@ -443,9 +445,7 @@ async function build() {
   }
   $("contentStatus").textContent = t("building");
   try {
-    await post("/api/build", {
-      ...fields(), outline: text, notes: $("notes").checked, images: $("images").checked,
-    });
+    await post("/api/build", { ...fields(), outline: text });
     state.timer = setInterval(poll, 1000);
   } catch (e) {
     error("contentError", `${t("buildFailed")} ${e.message}`);

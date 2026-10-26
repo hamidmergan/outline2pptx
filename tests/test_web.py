@@ -443,3 +443,12 @@ def test_a_later_upload_never_replaces_the_master_a_page_has_chosen(server):
     job = wait_for(client)
     assert job["state"] == "done", job["error"]
     assert job["info"]["template"] == "Forest"
+
+
+def test_the_outline_is_planned_without_picture_layouts_when_no_pictures_are_made(server):
+    server.outline = outline_answer(6, title="Bees")
+    client = make_client(server, image_model="an-image-model")
+    client.post("/api/outline", json={"topic": "Bees", "images": False})
+    assert "text_with_image" not in server.requests[-1]["body"]["messages"][0]["content"]
+    client.post("/api/outline", json={"topic": "Bees", "images": True})
+    assert "text_with_image" in server.requests[-1]["body"]["messages"][0]["content"]

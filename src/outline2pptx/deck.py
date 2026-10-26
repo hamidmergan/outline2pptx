@@ -17,7 +17,7 @@ from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Emu, Pt
 
-from . import bullets, colors, diagrams, elements, shapes, space, template
+from . import bullets, colors, diagrams, elements, forms, shapes, space, template
 from .colors import Palette
 from .schemas import Body, Slide
 from .split import font_size, lines
@@ -411,6 +411,8 @@ def _body(slide, field: Field, body: Body, picture: bytes | None, f: Palette, ty
         return False
     if body.kind == "symbols" and body.symbols:
         diagrams.symbols(slide, field, body.symbols, f, typeface)
+        return False
+    if forms.draw(slide, field, body, f, typeface):
         return False
     if body.kind == "image" and picture:
         slide.shapes.add_picture(_crop(picture, picture_field.aspect), picture_field.left, picture_field.top,

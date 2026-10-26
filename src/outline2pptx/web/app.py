@@ -61,6 +61,9 @@ class ModelFields(BaseModel):
     instructions: str = ""
     style_text: str = ""
     notice: str = ""
+    # The outline already needs these, a deck without pictures is planned without picture layouts.
+    notes: bool = False
+    images: bool = False
 
 
 class OutlineRequest(ModelFields):
@@ -70,8 +73,6 @@ class OutlineRequest(ModelFields):
 
 class BuildRequest(ModelFields):
     outline: str = ""
-    notes: bool = False
-    images: bool = False
 
 
 class Job:
@@ -164,6 +165,7 @@ def create_app(defaults: Optional[dict] = None,
             "style_text": _clean(request.style_text, MAX_STYLE_CHARS),
             "notice": _clean(request.notice, 200),
         }.items() if v is not None})
+        out.update(notes=request.notes, images=request.images)
         out.update(extra)
         return out
 
@@ -307,8 +309,7 @@ def create_app(defaults: Optional[dict] = None,
                 job.step, job.done, job.total = step, done, total
 
         try:
-            with with_template(options(request, notes=request.notes,
-                                       images=request.images)) as opts:
+            with with_template(options(request)) as opts:
                 deck = api.build(text, progress=progress, **opts)
         except DeckError as exc:
             with lock:
@@ -358,7 +359,7 @@ def create_app(defaults: Optional[dict] = None,
             if job.state == "running" or planning.is_set():
                 raise HTTPException(409, "A presentation is being created right now.")
             try:
-                resolve(**options(request, notes=request.notes, images=request.images))
+                resolve(**options(request))
             except ConfigError as exc:
                 raise HTTPException(400, str(exc)) from None
             if request.template.startswith(UPLOADED) and request.template not in uploads:

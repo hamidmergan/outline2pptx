@@ -61,3 +61,22 @@ def test_a_layout_with_vertical_text_is_never_used():
     used = {analysis.layout(i).name for found in analysis.roles.values() for i in found}
     assert not any("Vertical" in name for name in used)
     assert "Title and Content" in used
+
+
+def test_a_deck_without_pictures_never_gets_a_picture_layout():
+    _, analysis, _ = library.load("clean")
+    plain = template.without_pictures(analysis)
+    assert "text_with_image" not in plain.roles and "image_full" not in plain.roles
+    for found in plain.roles.values():
+        assert all(not plain.layout(i).of_kind("picture") for i in found)
+    assert len(plain.roles["two_columns"]) > 5
+    # The analysis itself keeps every layout for a deck that does get pictures.
+    assert "text_with_image" in analysis.roles
+
+
+def test_the_packaged_templates_offer_many_layouts():
+    for name in ("clean", "warm", "forest"):
+        _, analysis, _ = library.load(name)
+        assert len(analysis.layouts) == 51
+        assert not analysis.skipped
+        assert len(analysis.roles["text_with_image"]) >= 20

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from io import BytesIO
 
 from lxml import etree
@@ -24,6 +24,9 @@ _NOT_FILLED = {"DATE", "FOOTER", "SLIDE_NUMBER"}
 # Calendar, Trends and Legend, which are ordinary content layouts.
 _CLOSING_RE = re.compile(r"abschluss|danke|closing|thank|\bend(?:e|ing)?\b", re.I)
 _SECTION_RE = re.compile(r"abschnitt|section", re.I)
+# The fewest entries each newer form needs to say more than a list would.
+FORM_MINIMUM = {"timeline": 3, "cycle": 3, "versus": 2, "matrix": 4, "quote": 1, "checklist": 3,
+                "definitions": 2, "mistakes": 2, "scale": 2, "venn": 1, "tree": 2, "example": 2}
 # Text that runs top to bottom, for East Asian scripts. A list written into it lies on its side.
 _VERTICAL_RE = re.compile(r'orient="vert"|\bvert="(?!horz")[^"]+"')
 _LVL1 = re.compile(r"<a:lvl1pPr(?:\s[^>]*[^/])?>(.*?)</a:lvl1pPr>", re.S)
@@ -111,6 +114,22 @@ def analyse(source: bytes | str) -> Analysis:
     return a
 
 
+def without_pictures(a: Analysis) -> Analysis:
+    """The roles limited to layouts without a picture field, for a deck that gets no pictures.
+
+    A role left without any layout drops out. Cover and closing keep theirs, their picture
+    slot simply stays empty.
+    """
+    roles: dict[str, list[int]] = {}
+    for role, found in a.roles.items():
+        plain = [i for i in found if not a.layout(i).of_kind("picture")]
+        if plain:
+            roles[role] = plain
+        elif role in ("cover", "closing"):
+            roles[role] = found
+    return replace(a, roles=roles)
+
+
 def selectable_roles(a: Analysis) -> list[str]:
     return sorted(r for r in a.roles if r in SELECTABLE_ROLES)
 
@@ -134,12 +153,15 @@ def spec_for(l: Layout, a: Analysis) -> dict:
         if not a.has_image_fields():
             kinds.append("image")
         f = body_fields[0]
+        forms = grid.form_space(f.width, f.height, f.size_pt)
+        kinds += [kind for kind, most in forms.items() if most >= FORM_MINIMUM[kind]]
         room = {"cards": grid.card_space(f.width, f.height, f.size_pt),
                  "bars": grid.bar_space(f.height, f.size_pt),
                  "steps": grid.step_space(f.width, f.size_pt),
                  "figures": grid.figure_space(f.width, f.size_pt),
                  "levels": grid.level_space(f.width, f.height, f.size_pt),
-                 "symbols": grid.symbol_space(f.width, f.height, f.size_pt)}
+                 "symbols": grid.symbol_space(f.width, f.height, f.size_pt),
+                 "forms": forms}
     return {
         **room,
         "heading": next((f.words for f in l.of_kind("heading")), 8),

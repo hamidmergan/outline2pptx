@@ -4,7 +4,7 @@ import pytest
 
 from outline2pptx import library, slides as sl, template
 from outline2pptx.outline import Unusable
-from outline2pptx.schemas import OutlineRow, DeckParams
+from outline2pptx.schemas import DRAWN_KINDS, OutlineRow, DeckParams
 
 
 @pytest.fixture(scope="module")
@@ -118,14 +118,20 @@ def test_too_few_steps_become_bullets(spec):
     assert s.body.kind == "bullets"
 
 
-def test_card_slides_are_every_third_one(spec):
+def test_neighbouring_slides_never_share_a_drawn_form(spec):
     rows = [OutlineRow(id=f"s{i}", role="text", title=f"T{i}") for i in range(1, 10)]
-    picked = sl.card_slides(rows, {r.id: spec for r in rows})
-    assert picked == {"s1", "s4", "s7"}
+    spread = sl.spread(rows, {r.id: spec for r in rows})
+    drawn = [set(spread[r.id]["body_kinds"]) & set(DRAWN_KINDS) for r in rows]
+    for one, two in zip(drawn, drawn[1:]):
+        assert one and two and not one & two
+    # Cards on every third slide, as before, and bullets, table and chart on every one.
+    assert [r.id for r in rows if "cards" in spread[r.id]["body_kinds"]] == ["s1", "s4", "s7"]
+    assert all({"bullets", "table", "chart"} <= set(spread[r.id]["body_kinds"]) for r in rows)
 
 
-def test_without_cards_removes_the_kind(spec):
-    assert "cards" not in sl.without_cards(spec)["body_kinds"]
+def test_every_drawn_form_belongs_to_one_group():
+    grouped = [k for group in sl.FORM_GROUPS for k in group]
+    assert sorted(grouped) == sorted(DRAWN_KINDS)
 
 
 def test_too_thin_names_the_slide(spec):

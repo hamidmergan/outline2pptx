@@ -7,21 +7,29 @@ import re
 from . import icons
 from .outline import LANGUAGE_NAMES, Unusable, json_object
 from .grid import (
-    MAX_BARS, MAX_CARDS, MAX_FIGURES, MAX_STEPS, MAX_LEVELS, MAX_SYMBOLS,
+    MAX_BARS, MAX_CARDS, MAX_FIGURES, MAX_LEAVES, MAX_LEVELS, MAX_SHARED, MAX_STEPS, MAX_SYMBOLS,
 )
 from .schemas import (
-    CHART_TYPES, MAX_BAR_TEXT_CHARS, MAX_CHART_CATEGORIES, MAX_CHART_SERIES, MAX_GIST_CHARS, MAX_HEADING_CHARS,
-    MAX_KEY_CHARS, MAX_NOTES_CHARS, MAX_PROMPT_CHARS, MAX_SERIES_NAME_CHARS, MAX_SUBTITLE_CHARS, MAX_TABLE_ROWS,
-    MAX_TEXT_ITEMS, MAX_TITLE_CHARS, Bar, Body, Card, Column, Entry, Figure, ImageSpec, OutlineRow,
-    DeckParams, Series, Slide, Symbol,
+    CHART_TYPES, DRAWN_KINDS, MAX_BAR_TEXT_CHARS, MAX_CHART_CATEGORIES, MAX_CHART_SERIES, MAX_DATE_CHARS,
+    MAX_GIST_CHARS, MAX_HEADING_CHARS, MAX_KEY_CHARS, MAX_NOTES_CHARS, MAX_PROMPT_CHARS, MAX_SERIES_NAME_CHARS,
+    MAX_SUBTITLE_CHARS, MAX_TABLE_ROWS, MAX_TEXT_ITEMS, MAX_TITLE_CHARS, QUADRANTS, TONES, Bar, Body, Branch,
+    Card, Cell, Column, Entry, Event, Figure, ImageSpec, Mark, OutlineRow, DeckParams, Pair, Series, Side,
+    Slide, Symbol,
 )
+from .template import FORM_MINIMUM
 
 # A slide below these reads as empty, a small field asks for fewer, at about twelve words a point.
 MIN_BULLET_POINTS = 4
 MIN_PER_COLUMN = 3
 WORDS_PER_BULLET = 12
-# Cards on nearly every slide read as a template, every third slide that could carry them is enough.
-CARDS_EVERY = 3
+# The drawn forms in three groups, each with a sequence, a form for numbers, one for ideas, one
+# for a comparison and one for text. A slide that may carry drawings is offered one group, its
+# neighbour the next, so two slides in a row never show the same drawing.
+FORM_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("steps", "figures", "cards", "versus", "levels", "quote", "definitions"),
+    ("timeline", "bars", "symbols", "matrix", "tree", "mistakes", "scale"),
+    ("cycle", "highlight", "checklist", "venn", "example"),
+)
 # Below these counts a drawing says less than a line of text.
 MIN_FIGURES = 2
 MIN_STEPS = 2
@@ -75,8 +83,39 @@ def build_messages(source: str, params: DeckParams, rows: list[OutlineRow],
         '  highlight: {"kind": "highlight", "key": "...", "text": "...", "emphasis": "..."} for one number or word '
         "that carries the slide: key is that number or word, at most 12 characters, text one sentence "
         "about it, emphasis a term that stands word for word in that sentence and gets marked in colour. Rare, only for a central figure.\n"
-        "  cards, bars, figures, steps, levels, symbols and highlight only where the content has that shape, "
-        "bullets stay the usual kind. In one answer each of these forms goes to one slide at most, so no two slides "
+        '  timeline: {"kind": "timeline", "events": [{"date": "...", "title": "...", "text": "..."}]} for dated '
+        'events in their order, such as a history or a schedule: date as short as "1957" or "May 2024", title one to '
+        "three words, text one short sentence.\n"
+        '  cycle: {"kind": "cycle", "center": "...", "steps": [{"title": "...", "text": "..."}]} for stages that '
+        "repeat in a loop, the last one leading back to the first, such as a life cycle or plan, do, check, act: center "
+        "names the whole cycle in one to three words. Never for a sequence that ends.\n"
+        '  versus: {"kind": "versus", "tone": "neutral|good_bad", "a": {"title": "...", "items": [...]}, '
+        '"b": {"title": "...", "items": [...]}} for two options, positions or approaches set against each other, two '
+        "to five short points per side. tone good_bad when a is the bad and b the good one, such as before and after "
+        "or myth and fact.\n"
+        '  matrix: {"kind": "matrix", "x": "...", "y": "...", "cells": [{"pos": "tl|tr|bl|br", "title": "...", '
+        '"text": "..."}]} for a 2x2 matrix along two axes, such as urgency and importance: x and y name the axes '
+        "in one to three words, all four cells filled, tr is high on both axes.\n"
+        '  quote: {"kind": "quote", "text": "...", "emphasis": "..."} for one sentence that carries the slide, such '
+        "as a guiding principle or a core definition: emphasis a term that stands word for word in it.\n"
+        '  checklist: {"kind": "checklist", "items": [...]} for things to check, do or bring, each item a short '
+        "command of a few words.\n"
+        '  definitions: {"kind": "definitions", "terms": [{"term": "...", "text": "..."}]} for terms and what each '
+        "one means, one sentence each.\n"
+        '  mistakes: {"kind": "mistakes", "pairs": [{"wrong": "...", "right": "..."}]} for common mistakes, each '
+        "with the right way beside it, one short sentence each.\n"
+        '  scale: {"kind": "scale", "left": "...", "right": "...", "marks": [{"label": "...", "pos": 0.5}]} for '
+        "things placed between two opposite ends, such as low to high risk: left and right name the ends, pos from "
+        "0 to 1 says where each label stands.\n"
+        '  venn: {"kind": "venn", "a": {"title": "...", "items": [...]}, "b": {"title": "...", "items": [...]}, '
+        '"both": [...]} for two things with what only one of them has and what both share, up to three items of a '
+        "few words each.\n"
+        '  tree: {"kind": "tree", "root": "...", "branches": [{"title": "...", "leaves": [...]}]} for one thing '
+        "divided into parts, each with up to three subparts of a few words.\n"
+        '  example: {"kind": "example", "situation": "...", "steps": [...], "result": "..."} for a worked example: '
+        "the situation in one sentence, two to four short steps, the result in one sentence.\n"
+        "  Every drawn form only where the content has its shape. Where one fits, prefer it to bullets: a deck of "
+        "bullet lists all looks the same. In one answer each form goes to one slide at most, so no two slides "
         "look alike.\n"
         "  The numbers of a table, chart, bars, figures or highlight belong to the slide's own title and gist, "
         "never to a neighbouring passage about something else.\n"
@@ -107,6 +146,10 @@ def build_messages(source: str, params: DeckParams, rows: list[OutlineRow],
             lines.append(f"  subtitle: yes, up to {f['subheading'][0]} words")
         if len(f["bodies"]) == 1:
             lines.append(f"  body: up to {f['bodies'][0]} words, allowed kinds: {', '.join(f['body_kinds'])}")
+            drawn = [k for k in f["body_kinds"] if k in DRAWN_KINDS]
+            if drawn:
+                lines.append(f"  drawn forms for this slide: {', '.join(drawn)}. Take the one whose shape the "
+                             "content has, bullets only when it is a plain list")
             if "cards" in f["body_kinds"] and f.get("cards"):
                 k = f["cards"]
                 lines.append(f"  cards: 2 to {k['max']}, each title up to {k['title_words']} words, "
@@ -122,6 +165,9 @@ def build_messages(source: str, params: DeckParams, rows: list[OutlineRow],
                                   f"each text up to {p['text_words']} words")
             if "symbols" in f["body_kinds"] and f.get("symbols", 0) >= MIN_SYMBOLS:
                 lines.append(f"  symbols: {MIN_SYMBOLS} to {f['symbols']}")
+            for kind, most in (f.get("forms") or {}).items():
+                if kind in f["body_kinds"] and kind in _COUNTED:
+                    lines.append(f"  {kind}: {FORM_MINIMUM[kind]} to {most} {_COUNTED[kind]}")
         elif len(f["bodies"]) > 1:
             limits = ", ".join(str(w) for w in f["bodies"])
             head = f", each with a heading of up to {f['subheading'][0]} words" if f["subheading"] else ""
@@ -138,14 +184,24 @@ def build_messages(source: str, params: DeckParams, rows: list[OutlineRow],
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def card_slides(rows: list[OutlineRow], specs: dict[str, dict]) -> set[str]:
-    """The slides that may carry cards, every third one of those whose layout allows them, in deck order."""
-    possible = [r.id for r in rows if "cards" in specs.get(r.id, {}).get("body_kinds", [])]
-    return set(possible[::CARDS_EVERY])
+# What the count of each newer form counts, for the line that tells the model its limit.
+_COUNTED = {"timeline": "events", "cycle": "steps", "versus": "points per side", "checklist": "items",
+            "definitions": "terms", "mistakes": "pairs", "scale": "marks", "tree": "branches",
+            "example": "steps"}
 
 
-def without_cards(form: dict) -> dict:
-    return {**form, "body_kinds": [k for k in form["body_kinds"] if k != "cards"]}
+def spread(rows: list[OutlineRow], specs: dict[str, dict]) -> dict[str, dict]:
+    """Every slide that may carry drawings gets one group of them, its neighbour the next group."""
+    out = dict(specs)
+    n = 0
+    for r in rows:
+        form = specs.get(r.id)
+        if not form or not any(k in DRAWN_KINDS for k in form["body_kinds"]):
+            continue
+        group = FORM_GROUPS[n % len(FORM_GROUPS)]
+        out[r.id] = {**form, "body_kinds": [k for k in form["body_kinds"] if k not in DRAWN_KINDS or k in group]}
+        n += 1
+    return out
 
 
 def bullet_count(s: Slide) -> int:
@@ -353,7 +409,99 @@ def _body(raw, form: dict) -> Body:
         if not b.key or not b.text:
             b.kind, b.items = "bullets", b.items or [t for t in (b.text or b.key,) if t]
             b.key = b.text = b.emphasis = ""
+    elif kind in FORM_MINIMUM:
+        _form(b, raw, kind, (form.get("forms") or {}).get(kind) or 99)
     return b
+
+
+def _side(v, most: int) -> Side | None:
+    if not isinstance(v, dict):
+        return None
+    side = Side(title=_text(v.get("title"))[:MAX_HEADING_CHARS], items=_items(v.get("items"))[:most])
+    return side if side.title or side.items else None
+
+
+def _form(b: Body, raw: dict, kind: str, most: int) -> None:
+    """One of the newer forms filled in, as bullets when the answer holds too little of it."""
+    minimum = FORM_MINIMUM[kind]
+    points: list[str] = []
+    ok = False
+    if kind == "timeline":
+        b.events = [Event(date=_text(e.get("date"))[:MAX_DATE_CHARS], title=_text(e.get("title"))[:MAX_HEADING_CHARS],
+                          text=_text(e.get("text"))[:MAX_GIST_CHARS])
+                    for e in _list(raw, "events") if _text(e.get("date")) and _text(e.get("title"))][:most]
+        ok = len(b.events) >= minimum
+        points = [_row_text(f"{e.date} {e.title}", e.text) for e in b.events]
+    elif kind == "cycle":
+        b.cycle = [Entry(title=_text(e.get("title"))[:MAX_HEADING_CHARS], text=_text(e.get("text"))[:MAX_GIST_CHARS])
+                   for e in _list(raw, "steps") if _text(e.get("title"))][:most]
+        b.center = _text(raw.get("center"))[:MAX_HEADING_CHARS]
+        ok = len(b.cycle) >= minimum
+        points = [_row_text(e.title, e.text) for e in b.cycle]
+    elif kind in ("versus", "venn"):
+        cap = most if kind == "versus" else MAX_SHARED
+        sides = [_side(raw.get(key), cap) for key in ("a", "b")]
+        b.sides = [z for z in sides if z is not None]
+        if kind == "versus":
+            b.tone = raw.get("tone") if raw.get("tone") in TONES else "neutral"
+            ok = len(b.sides) == 2 and all(len(z.items) >= minimum for z in b.sides)
+        else:
+            b.shared = _items(raw.get("both"))[:MAX_SHARED]
+            ok = len(b.sides) == 2 and bool(b.shared) and all(z.title for z in b.sides)
+        points = [_row_text(z.title, ", ".join(z.items)) for z in b.sides]
+    elif kind == "matrix":
+        cells: dict[str, Cell] = {}
+        for c in _list(raw, "cells"):
+            pos = c.get("pos")
+            if pos in QUADRANTS and pos not in cells and _text(c.get("title")):
+                cells[pos] = Cell(pos=pos, title=_text(c.get("title"))[:MAX_HEADING_CHARS],
+                                  text=_text(c.get("text"))[:MAX_GIST_CHARS])
+        b.cells = [cells[q] for q in QUADRANTS if q in cells]
+        b.axis_x, b.axis_y = _text(raw.get("x"))[:MAX_HEADING_CHARS], _text(raw.get("y"))[:MAX_HEADING_CHARS]
+        ok = len(b.cells) == 4 and bool(b.axis_x and b.axis_y)
+        points = [_row_text(c.title, c.text) for c in b.cells]
+    elif kind == "quote":
+        b.text = _text(raw.get("text"))[:MAX_GIST_CHARS]
+        b.emphasis = _text(raw.get("emphasis"))[:MAX_HEADING_CHARS]
+        if b.emphasis.lower() not in b.text.lower():
+            b.emphasis = ""
+        ok = bool(b.text)
+    elif kind == "checklist":
+        b.items = b.items[:most]
+        ok = len(b.items) >= minimum
+    elif kind == "definitions":
+        b.terms = [Entry(title=_text(e.get("term"))[:MAX_HEADING_CHARS], text=_text(e.get("text"))[:MAX_GIST_CHARS])
+                   for e in _list(raw, "terms") if _text(e.get("term"))][:most]
+        ok = len(b.terms) >= minimum
+        points = [_row_text(e.title, e.text) for e in b.terms]
+    elif kind == "mistakes":
+        b.pairs = [Pair(wrong=_text(e.get("wrong"))[:MAX_GIST_CHARS], right=_text(e.get("right"))[:MAX_GIST_CHARS])
+                   for e in _list(raw, "pairs") if _text(e.get("wrong")) and _text(e.get("right"))][:most]
+        ok = len(b.pairs) >= minimum
+        points = [z.right for z in b.pairs]
+    elif kind == "scale":
+        b.left, b.right = _text(raw.get("left"))[:MAX_HEADING_CHARS], _text(raw.get("right"))[:MAX_HEADING_CHARS]
+        b.marks = sorted((Mark(label=_text(e.get("label"))[:MAX_HEADING_CHARS],
+                               pos=min(1.0, max(0.0, _num(e.get("pos")))))
+                          for e in _list(raw, "marks") if _text(e.get("label"))), key=lambda m: m.pos)[:most]
+        ok = len(b.marks) >= minimum and bool(b.left and b.right)
+        points = [m.label for m in b.marks]
+    elif kind == "tree":
+        b.root = _text(raw.get("root"))[:MAX_HEADING_CHARS]
+        b.branches = [Branch(title=_text(e.get("title"))[:MAX_HEADING_CHARS],
+                             leaves=_items(e.get("leaves"))[:MAX_LEAVES])
+                      for e in _list(raw, "branches") if _text(e.get("title"))][:most]
+        ok = bool(b.root) and len(b.branches) >= minimum
+        points = [_row_text(z.title, ", ".join(z.leaves)) for z in b.branches]
+    elif kind == "example":
+        b.situation = _text(raw.get("situation"))[:MAX_GIST_CHARS]
+        b.result = _text(raw.get("result"))[:MAX_GIST_CHARS]
+        b.items = _items(raw.get("steps"))[:most]
+        ok = bool(b.result) and len(b.items) >= minimum
+        points = [t for t in (b.situation, *b.items, b.result) if t]
+    if not ok:
+        b.kind, b.items = "bullets", (b.items or points or [b.text])[:MAX_TEXT_ITEMS]
+        b.items = [t for t in b.items if t]
 
 
 def _row_text(head: str, text: str) -> str:

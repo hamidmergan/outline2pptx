@@ -11,6 +11,17 @@ MAX_STEPS = 6
 MAX_FIGURES = 4
 MAX_LEVELS = 5
 MAX_SYMBOLS = 8
+MAX_EVENTS = 6
+MAX_CYCLE = 6
+MAX_SIDE_ITEMS = 5
+MAX_SHARED = 3
+MAX_TERMS = 5
+MAX_PAIRS = 4
+MAX_MARKS = 5
+MAX_BRANCHES = 4
+MAX_LEAVES = 3
+MAX_CHECKS = 8
+MAX_EXAMPLE_STEPS = 4
 # Card text follows the template's body size, but a poster-sized body would leave room for one card.
 MAX_BASE_PT = 18.0
 DEFAULT_PT = 16.0
@@ -118,3 +129,41 @@ def symbol_space(width: int, height: int, size_pt: float) -> int:
     g = base_pt(size_pt)
     return min(MAX_SYMBOLS, _count(width / EMU_PER_PT, SYMBOL_MIN_WIDTH * g, 0.0)
                * _count(height / EMU_PER_PT, SYMBOL_MIN_HEIGHT * g, GAP * g))
+
+
+# The newer forms, each in multiples of the base size: an event's column, a branch's column,
+# a mark's room on the scale, and the height a checklist row, a term, a pair and a side's point need.
+EVENT_MIN_WIDTH = 9.0
+BRANCH_MIN_WIDTH = 11.0
+MARK_MIN_WIDTH = 8.0
+CHECK_MIN_HEIGHT = 2.4
+CHECK_MIN_WIDTH = 18.0
+TERM_MIN_HEIGHT = 3.0
+PAIR_MIN_HEIGHT = 3.4
+SIDE_ITEM_HEIGHT = 2.2
+# A diagram drawn round or in quadrants needs this much height, a scale and an example this much.
+FIGURE_MIN_HEIGHT = 14.0
+SCALE_MIN_HEIGHT = 8.0
+EXAMPLE_MIN_HEIGHT = 12.0
+
+
+def form_space(width: int, height: int, size_pt: float) -> dict:
+    """The most entries every newer form takes in this field, 0 where the field is too small for it."""
+    g = base_pt(size_pt)
+    w, h = width / EMU_PER_PT, height / EMU_PER_PT
+    tall = h >= FIGURE_MIN_HEIGHT * g
+    return {
+        "timeline": min(MAX_EVENTS, _count(w, EVENT_MIN_WIDTH * g, 0.0)),
+        "cycle": MAX_CYCLE if tall else 0,
+        "versus": min(MAX_SIDE_ITEMS, max(0, int((h - 3 * g) // (SIDE_ITEM_HEIGHT * g)))),
+        "matrix": 4 if tall else 0,
+        "quote": 1,
+        "checklist": min(MAX_CHECKS, _count(h, CHECK_MIN_HEIGHT * g, 0.0)
+                         * (2 if w >= 2 * CHECK_MIN_WIDTH * g else 1)),
+        "definitions": min(MAX_TERMS, _count(h, TERM_MIN_HEIGHT * g, 0.0)),
+        "mistakes": min(MAX_PAIRS, max(0, int((h - 2 * g) // (PAIR_MIN_HEIGHT * g)))),
+        "scale": min(MAX_MARKS, _count(w, MARK_MIN_WIDTH * g, 0.0)) if h >= SCALE_MIN_HEIGHT * g else 0,
+        "venn": MAX_SHARED if tall else 0,
+        "tree": min(MAX_BRANCHES, _count(w, BRANCH_MIN_WIDTH * g, GAP * g)) if tall else 0,
+        "example": MAX_EXAMPLE_STEPS if h >= EXAMPLE_MIN_HEIGHT * g else 0,
+    }

@@ -33,6 +33,9 @@ slide is rendered with LibreOffice.
 - [x] 8 Web UI and Docker
 - [x] 9 Review fixes
 - [x] 10 Documents as input: reader, material aware outline, size budget, CLI, page
+- [x] 11 Variety: 51 layouts in the packaged templates, picture layouts only with pictures,
+  a rule that spreads the drawn elements, new elements (timeline, cycle, comparison, matrix,
+  quote, checklist, definitions, mistakes, scale, venn, tree, example)
 
 ## The material path
 

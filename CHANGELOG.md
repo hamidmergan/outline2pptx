@@ -26,14 +26,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   layouts are used. Every upload has its own id, so a later upload never changes the master
   of a run
 
+- Twelve new drawn forms: timeline, cycle, comparison of two sides, 2x2 matrix, quotation,
+  checklist, definitions, common mistakes, scale, Venn diagram, tree and worked example
+- The packaged templates have 51 layouts each instead of 9: text in up to six fields, text
+  beside, above or below up to four pictures, pictures that run to the slide's edge, section
+  dividers with pictures and slides of pictures alone
+
 ### Changed
 
+- Neighbouring slides are offered different groups of drawn forms, so no two slides in a row
+  show the same drawing, and the model is asked to prefer a drawing over a plain list
+- A deck without pictures only uses layouts without a picture field, no slide keeps an empty half
 - One button on the page creates the whole deck. The outline is planned and the slides are
   written in one go, there is no separate outline step any more
 
 ### Fixed
 
 - A layout whose text runs top to bottom is no longer used, a list in it lay on its side
+- The preview finds LibreOffice under `soffice` too, the name the macOS package uses
 - The page and its scripts are sent with `no-cache`, so a browser never keeps a stale script
   after an update
 

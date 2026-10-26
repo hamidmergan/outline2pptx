@@ -2,16 +2,18 @@
 
 A Python tool that builds a PowerPoint deck from your own documents, from a Markdown outline or from a plain topic. The model plans the outline and writes the slide content. The file itself is built with python-pptx from a template, so the result is a normal editable `.pptx`.
 
-![One slide of a deck built with the clean template](https://raw.githubusercontent.com/hamidmergan/outline2pptx/main/docs/example.png)
-
 outline2pptx currently writes:
 
-- Bullet slides, two column slides and section dividers
+- Bullet slides, slides of two to six columns or fields, and section dividers
 - Tables, bar charts and line charts
 - Cards with icons, bar comparisons, key figures, process steps and pyramid levels
-- One highlighted key statement
+- Timelines, cycles, trees, 2x2 matrices, Venn diagrams and scales
+- Comparisons of two sides, common mistakes beside the right way, checklists, definitions and worked examples
+- One highlighted key statement or a quotation
 - Illustrations from an image model, and a deck without one simply has no picture boxes
 - Speaker notes, on request
+
+Neighbouring slides never show the same kind of drawing, and the packaged templates offer 51 layouts, so a deck does not repeat one look from start to end.
 
 It reads PDF, DOCX, PPTX, Markdown and plain text. A PDF is read by its layout, so the running header and the footer of a handout do not turn up as bullet points on a slide.
 
@@ -21,7 +23,7 @@ It reads PDF, DOCX, PPTX, Markdown and plain text. A PDF is read by its layout, 
 - A server with an OpenAI-compatible API and a **text model** (for example Ollama, vLLM, LM Studio, a research server or a cloud provider). It is needed for `--topic`, for `--material` and for writing the slides.
 - An **image model** on the same kind of API, only needed for `--images`. Without one the deck is built without pictures, and a slide that asked for one keeps its text alone.
 - An API key is optional. Many self-hosted servers do not need one.
-- LibreOffice, only needed for `--preview`. Nothing else uses it.
+- LibreOffice, only needed for `--preview`. Nothing else uses it. Its command is found as `libreoffice` or as `soffice`, the name of the macOS package.
 
 If you run your own model, your documents, your topic and your slide text stay on your own network. Nothing leaves your machine or data center.
 
@@ -197,7 +199,7 @@ Pass `progress=lambda stage, done, total: ...` to follow a long run. The stages 
 
 ### Templates
 
-Three templates ship with the package: `clean`, `forest` and `warm`. A template is a `.pptx` or `.potx` whose layouts carry the roles above, with an optional `<name>.json` beside it:
+Three templates ship with the package: `clean`, `forest` and `warm`. Each has 51 layouts: text in one to six fields, in columns or in rows, text beside, above or below one to four pictures, section dividers with and without a picture, and slides of pictures alone. Slides of one role take turns through its layouts. A deck built without pictures only uses the layouts without a picture field. A template is a `.pptx` or `.potx` whose layouts carry the roles above, with an optional `<name>.json` beside it:
 
 ```json
 {
@@ -252,7 +254,7 @@ Start a local page with the same options as the CLI:
 outline2pptx serve
 ```
 
-It listens on `http://127.0.0.1:8000`. The page offers all three ways in and says which one is in use: a topic, your own documents or your own Markdown. Pick a template and a language and press Create slides. Instead of a built-in template you can upload a slide master of your own, a `.pptx` or `.potx` file. Its fonts, colours and layouts are used for the deck, and the page says how many of its layouts the builder can use. The upload is kept in memory until the next one replaces it. One click plans the outline, writes the slides and builds the file. After uploaded documents are read, the page shows how much text came out of them, and whether that was more than one call can carry. To edit the outline first, print it with `--outline-only` and paste it into the Outline tab. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
+It listens on `http://127.0.0.1:8000`. The page offers all three ways in and says which one is in use: a topic, your own documents or your own Markdown. Pick a template and a language and press Create slides. Instead of a built-in template you can upload a slide master of your own, a `.pptx` or `.potx` file. Its fonts, colours and layouts are used for the deck, and the page says how many of its layouts the builder can use. The last five uploads are kept in memory, every one under its own id, so a later upload never changes the master of a run. One click plans the outline, writes the slides and builds the file. After uploaded documents are read, the page shows how much text came out of them, and whether that was more than one call can carry. To edit the outline first, print it with `--outline-only` and paste it into the Outline tab. Where LibreOffice is installed, every slide is shown as a picture. Server and model can come from the environment or from the fields on the page, and nothing is stored on disk.
 
 The page is available in English and German.
 
@@ -293,7 +295,9 @@ The documents shape the outline, and every slide is written from the title and t
 
 A scanned PDF without a text layer carries no text for the deck. There is no text recognition.
 
-A template only works if its layouts can be matched to the roles. A deck built from a very unusual template may fall back to plain text slides.
+A template only works if its layouts can be matched to the roles. A deck built from a very unusual template may fall back to plain text slides. Layouts without a title field or with vertical text are skipped.
+
+Drawings are only placed in a single content field without a picture beside it. Layouts with several fields carry bullet points in each of them.
 
 ## Running Tests
 
