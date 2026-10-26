@@ -30,6 +30,15 @@ def soffice_profile_dir() -> Path:
     return Path(tempfile.gettempdir()) / "outline2pptx-lo-profiles" / key
 
 
+# The command is called libreoffice on Linux and soffice in the macOS package.
+OFFICE_COMMANDS = ("libreoffice", "soffice")
+
+
+def office_command() -> str:
+    """The LibreOffice command this machine has, the first one found on the PATH."""
+    return next((name for name in OFFICE_COMMANDS if shutil.which(name)), OFFICE_COMMANDS[0])
+
+
 def build_soffice_cmd(pptx_path: Path, output_dir: Path) -> list[str]:
     """The LibreOffice call for PPTX to PDF, without hidden slides."""
     profile = soffice_profile_dir()
@@ -39,7 +48,7 @@ def build_soffice_cmd(pptx_path: Path, output_dir: Path) -> list[str]:
         '{"ExportHiddenSlides":{"type":"boolean","value":"false"}}'
     )
     return [
-        "libreoffice", "--headless", "--norestore",
+        office_command(), "--headless", "--norestore",
         f"-env:UserInstallation=file://{profile}",
         "--convert-to", pdf_filter,
         "--outdir", str(output_dir), str(pptx_path),
@@ -365,4 +374,5 @@ def pptx_to_images(pptx_path: Path, output_dir: Path, dpi: int = 100) -> list[Pa
 
 def available() -> bool:
     """True when LibreOffice and the poppler tools a preview needs are on this machine."""
-    return all(shutil.which(name) for name in ("libreoffice", "pdfinfo", "pdftoppm"))
+    return (any(shutil.which(name) for name in OFFICE_COMMANDS)
+            and all(shutil.which(name) for name in ("pdfinfo", "pdftoppm")))

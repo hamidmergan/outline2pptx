@@ -217,3 +217,12 @@ def test_no_slide_image_is_a_preview_error_not_a_raw_runtime_error(clean, tmp_pa
     monkeypatch.setattr(render.subprocess, "run", fake_run)
     with pytest.raises(PreviewError, match="no slide image"):
         render.pptx_to_images(source, target)
+
+
+def test_the_preview_finds_libreoffice_under_its_macos_name(monkeypatch):
+    from outline2pptx import render
+
+    found = {"soffice", "pdfinfo", "pdftoppm"}
+    monkeypatch.setattr(render.shutil, "which", lambda name: f"/bin/{name}" if name in found else None)
+    assert render.available()
+    assert render.build_soffice_cmd(render.Path("deck.pptx"), render.Path("out"))[0] == "soffice"

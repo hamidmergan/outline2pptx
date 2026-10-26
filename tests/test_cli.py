@@ -150,7 +150,7 @@ def test_settings_can_come_from_the_environment(server, outline_file, tmp_path, 
 def test_a_failed_preview_keeps_the_deck_it_already_wrote(server, outline_file, tmp_path,
                                                           monkeypatch, capsys):
     server.slides = answer_for_batch
-    monkeypatch.setattr("outline2pptx.render.available", lambda: False)
+    monkeypatch.setattr("outline2pptx.preview.available", lambda: False)
     out = tmp_path / "deck.pptx"
     code = cli.main([str(outline_file), "-o", str(out), "--preview", str(tmp_path / "png"),
                      *flags(server)])
